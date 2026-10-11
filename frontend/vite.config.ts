@@ -11,6 +11,8 @@ export default defineConfig({
     },
   },
   build: {
+    // maplibre-gl alone is ~1 MB minified; it is isolated in a lazily loaded chunk.
+    chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
         manualChunks(id) {

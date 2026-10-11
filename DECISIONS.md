@@ -94,3 +94,62 @@ Judgment calls made where the brief was ambiguous, with the reasoning behind eac
   and coordinates are rounded to 5 decimals (~1 m). All calculations use the full geometry.
 - **`HTTP_FORCE_IPV4`** (off by default) makes the backend resolve IPv4 only. The development machine's
   resolver stalled 15 s on AAAA lookups for every new connection.
+
+## Heatmap
+
+- **Backend grid, not weather tiles.** The corridor is the bounding box of all routes, buffered 30 mi.
+  The spacing is the smallest of a fixed ladder (0.1°, 0.15°, 0.2° … 3°) that keeps the grid at or
+  under 400 points. Points snap to multiples of the spacing, so overlapping corridors share
+  coordinates and therefore cached forecasts.
+- **Frame h covers the hour [now_hour + h, now_hour + h + 1)**, reading precipitation and gusts from
+  the bucket that closes that hour. Slider hour 0 = "now", 48 frames ahead (49 values).
+- **Rendered as blurred circles, not MapLibre's `heatmap` layer.** A heatmap layer colours by point
+  density, which on a uniform grid confuses density with intensity. Circles coloured by value,
+  radius scaled per zoom to one grid cell, show the actual forecast. Colours change at the risk
+  thresholds (25/35/45/55 mph, etc.), with a faint tint below Moderate, so the heatmap and the
+  checkpoints use the same visual language.
+- **The slider swaps one hour's values** into the same GeoJSON source: no requests while scrubbing,
+  toggling layers or playing (verified in a headless browser).
+- **Truck markers** use each route's cumulative durations, so a truck slows where Mapbox expects
+  slow traffic. A marker shows only between that route's departure and arrival.
+
+## Frontend
+
+- **Risk palette** is derived from Okabe–Ito (colour-blind safe). Every use pairs colour with
+  something else: a text label, a level icon, a one-letter code inside map markers
+  (L/M/H/S/X), marker size growing with level, and a dashed overlay on No Travel road segments.
+- **Typeface pairing:** IBM Plex Sans for UI text, IBM Plex Mono for numbers (tabular figures), which
+  suits a dispatch console. Self-hosted via `@fontsource`, so no third-party font CDN is needed.
+- **State:** TanStack Query for server state (plan as a mutation; geocode and heatmap as cached
+  queries). Small zustand stores hold the form and the UI selection, hover and timeline, so hovering
+  a strip re-renders only what subscribes to it.
+- **Map layers** are memoised style objects with long-lived GeoJSON sources whose `data` changes
+  (react-map-gl calls `setData`), never recreated layers. Route lines draw beneath place labels;
+  checkpoints draw above them.
+- **The map is code-split** (MapLibre is ~290 KB gzipped) and wrapped in an error boundary, so the
+  planner still works if WebGL is unavailable.
+- **maplibre-gl 6 worker URL.** The library locates its worker relative to its own module URL, which
+  Vite rewrites. The worker file is imported as a `?url` asset and passed to `setWorkerUrl`.
+- **Form errors appear after the first submit**, then update live, so nobody is shouted at while
+  still typing. The form mirrors the backend's validation so most mistakes never reach the server.
+- **Results replace the form with a one-line trip summary** and an Edit button, which keeps the
+  route cards above the fold.
+- **The staged progress indicator** advances on typical timings, since the plan is a single
+  request. It's honest about stages, not percentages.
+- **Weight presets** (15k / 35k / 45k / 80k) land in different load-rule bands: below 30k, 30–40k,
+  above 40k, and the legal maximum.
+
+## Deployment
+
+- **Both apps deploy to Vercel**, as two projects from one repository (root directories `backend`
+  and `frontend`). As of this writing, Vercel's Python runtime detects Django from `manage.py`, allows
+  500 MB bundles (this one is a few MB), and runs up to 300 s on Hobby with Fluid compute; a cold
+  plan takes ~3–10 s. `maxDuration` is set to 60 s.
+- **Redis via Upstash** (Vercel Marketplace). Integration versions name the URL differently, so
+  the settings accept `REDIS_URL` or `KV_URL`.
+  Without either, each function instance has its own in-memory cache, which still works but shares
+  less.
+- **The frontend calls the API cross-origin** via `VITE_API_BASE_URL`. CORS is restricted to the
+  configured origins, plus an optional regex for preview deployments.
+- **Silenced Django deploy checks**: CSRF (no cookie auth), SSL redirect and HSTS (terminated and
+  sent by the platform). The reasons are commented in `settings.py`.

@@ -47,7 +47,15 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+# A cookie-less JSON API behind a TLS-terminating platform (which also sends HSTS):
+# CSRF middleware, SSL redirect and app-level HSTS add nothing here.
+SILENCED_SYSTEM_CHECKS = ["security.W003", "security.W004", "security.W008"]
+
+# Behind Vercel/Render proxies: trust the forwarded scheme.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 ROOT_URLCONF = "saferp.urls"
 WSGI_APPLICATION = "saferp.wsgi.application"
@@ -67,7 +75,8 @@ CORS_ALLOWED_ORIGIN_REGEXES = env_list("CORS_ALLOWED_ORIGIN_REGEXES")
 CORS_ALLOW_METHODS = ["GET", "POST", "OPTIONS"]
 
 # --- Cache ------------------------------------------------------------------
-REDIS_URL = os.environ.get("REDIS_URL", "").strip()
+# Upstash via the Vercel Marketplace exposes KV_URL; any redis:// or rediss:// URL works.
+REDIS_URL = (os.environ.get("REDIS_URL") or os.environ.get("KV_URL") or "").strip()
 if REDIS_URL:
     CACHES = {
         "default": {

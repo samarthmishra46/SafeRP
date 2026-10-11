@@ -169,10 +169,12 @@ export default function MapView({ plan, heatmap, timelineStartMs, padding }: Pro
   const trucks = useMemo(() => {
     if (!plan || !heatmap) return [];
     const at = timelineStartMs + heatHour * 3_600_000;
-    return plan.routes.flatMap((r) => {
-      const pos = positionAtElapsed(r, (at - Date.parse(r.departure)) / 1000);
-      return pos ? [{ id: r.id, pos, selected: r.id === selected?.id }] : [];
-    });
+    return plan.routes
+      .flatMap((r) => {
+        const pos = positionAtElapsed(r, (at - Date.parse(r.departure)) / 1000);
+        return pos ? [{ id: r.id, pos, selected: r.id === selected?.id }] : [];
+      })
+      .sort((a, b) => Number(a.selected) - Number(b.selected)); // selected truck drawn on top
   }, [plan, heatmap, timelineStartMs, heatHour, selected?.id]);
 
   // --- Camera ------------------------------------------------------------------------------

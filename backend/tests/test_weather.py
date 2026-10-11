@@ -65,3 +65,13 @@ def test_parse_open_meteo_location():
     sample = s.sample(T0 + timedelta(minutes=30))
     assert sample.rain_in == 0.15
     assert sample.wind_gust_mph is None
+
+
+def test_hourly_frame_reads_bucket_closing_the_hour():
+    from core.domain.weather import hourly_frame
+
+    s = make_series(gust=lambda i: i, speed=lambda i: 100 + i, rain=lambda i: i / 100)
+    f = hourly_frame(s, T0 + timedelta(hours=2), 0, "gust")
+    assert (f.wind_mph, f.rain_in) == (3, 0.03)
+    assert hourly_frame(s, T0 + timedelta(hours=2), 1, "sustained").wind_mph == 103
+    assert hourly_frame(s, T0, 71, "gust").wind_mph is None

@@ -123,3 +123,13 @@ def test_perpendicular_offsets_are_either_side_of_route():
     assert left[1] > 0 > right[1]
     assert left[0] == pytest.approx(0.5, abs=1e-6)
     assert haversine_m(left, (0.5, 0)) == pytest.approx(10_000, rel=0.01)
+
+
+def test_slice_polyline_interpolates_ends_and_keeps_inner_vertices():
+    from core.domain.geo import slice_polyline
+
+    coords = [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 0.0)]
+    cum = [0.0, 10.0, 20.0, 30.0]
+    assert slice_polyline(coords, cum, 5, 25) == [(0.5, 0.0), (1.0, 0.0), (2.0, 0.0), (2.5, 0.0)]
+    assert slice_polyline(coords, cum, 0, 10) == [(0.0, 0.0), (1.0, 0.0)]
+    assert slice_polyline(coords, cum, 30, 30) == [(3.0, 0.0), (3.0, 0.0)]

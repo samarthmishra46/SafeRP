@@ -6,26 +6,9 @@ from rest_framework import exceptions, status
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
+from core.errors import PlanningError, UpstreamError
+
 logger = logging.getLogger(__name__)
-
-
-class UpstreamError(Exception):
-    """A third-party API failed or returned something unusable."""
-
-    def __init__(self, service: str, message: str):
-        super().__init__(f"{service}: {message}")
-        self.service = service
-        self.message = message
-
-
-class PlanningError(Exception):
-    """The request is valid but cannot be planned (e.g. no route, beyond forecast horizon)."""
-
-    def __init__(self, message: str, code: str = "unplannable", http_status: int = 422):
-        super().__init__(message)
-        self.message = message
-        self.code = code
-        self.http_status = http_status
 
 
 def error_response(code: str, message: str, http_status: int, details=None) -> Response:
@@ -50,7 +33,7 @@ def exception_handler(exc, context):
         logger.warning("Upstream failure: %s", exc)
         return error_response(
             "upstream_error",
-            f"The {exc.service} service is unavailable right now: {exc.message}",
+            f"{exc.service} is unavailable right now: {exc.message}",
             status.HTTP_502_BAD_GATEWAY,
         )
     if isinstance(exc, PlanningError):

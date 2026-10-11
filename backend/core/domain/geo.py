@@ -184,6 +184,35 @@ def _densify(xy: list[tuple[float, float]], step: float) -> list[tuple[float, fl
     return out
 
 
+class Footprint:
+    """A route rasterised onto ~`cell`-metre cells, for fast "how much do two routes share".
+
+    Each cell holds the length of route inside it; `near` is the set of cells within one cell
+    of the route. Two routes sharing a road fall into the same or adjacent cells.
+    """
+
+    def __init__(self, coords: Sequence[LonLat], ref_lat: float, cell: float = 120.0):
+        proj = _Projector(ref_lat)
+        self.length_by_cell: dict[tuple[int, int], float] = {}
+        for x, y, w in _densify([proj(p) for p in coords], step=cell / 2):
+            key = (math.floor(x / cell), math.floor(y / cell))
+            self.length_by_cell[key] = self.length_by_cell.get(key, 0.0) + w
+        self.total = sum(self.length_by_cell.values())
+        self.near = {
+            (cx + i, cy + j)
+            for cx, cy in self.length_by_cell
+            for i in (-1, 0, 1)
+            for j in (-1, 0, 1)
+        }
+
+    def shared_fraction(self, other: Footprint) -> float:
+        """Share of this route's length that lies along `other`."""
+        if not self.total:
+            return 0.0
+        shared = sum(w for c, w in self.length_by_cell.items() if c in other.near)
+        return shared / self.total
+
+
 def overlap_fraction(
     candidate: Sequence[LonLat], existing: Sequence[LonLat], tolerance_m: float = 120.0
 ) -> float:
@@ -191,19 +220,9 @@ def overlap_fraction(
     if len(candidate) < 2 or len(existing) < 2:
         return 0.0
     ref_lat = (candidate[0][1] + candidate[-1][1]) / 2
-    proj = _Projector(ref_lat)
-    cell = tolerance_m
-    occupied: set[tuple[int, int]] = set()
-    for x, y, _ in _densify([proj(p) for p in existing], step=cell / 2):
-        occupied.add((math.floor(x / cell), math.floor(y / cell)))
-
-    shared = total = 0.0
-    for x, y, w in _densify([proj(p) for p in candidate], step=cell):
-        total += w
-        cx, cy = math.floor(x / cell), math.floor(y / cell)
-        if any((cx + i, cy + j) in occupied for i in (-1, 0, 1) for j in (-1, 0, 1)):
-            shared += w
-    return shared / total if total else 0.0
+    return Footprint(candidate, ref_lat, tolerance_m).shared_fraction(
+        Footprint(existing, ref_lat, tolerance_m)
+    )
 
 
 def perpendicular_offsets(profile: RouteProfile, offset_m: float) -> list[LonLat]:
@@ -227,3 +246,24 @@ def perpendicular_offsets(profile: RouteProfile, offset_m: float) -> list[LonLat
             )
         )
     return points
+
+
+def slice_polyline(
+    coords: Sequence[LonLat], cum_distance_m: Sequence[float], start_m: float, end_m: float
+) -> list[LonLat]:
+    """Sub-polyline between two distances along a line, with interpolated end points."""
+
+    def point_at(d: float) -> LonLat:
+        i = min(max(bisect_right(cum_distance_m, d) - 1, 0), len(coords) - 2)
+        seg = cum_distance_m[i + 1] - cum_distance_m[i]
+        f = 0.0 if seg <= 0 else min(max((d - cum_distance_m[i]) / seg, 0.0), 1.0)
+        a, b = coords[i], coords[i + 1]
+        return (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
+
+    if end_m <= start_m:
+        p = point_at(start_m)
+        return [p, p]
+    first = bisect_right(cum_distance_m, start_m)
+    last = bisect_right(cum_distance_m, end_m)
+    inner = [coords[i] for i in range(first, last) if start_m < cum_distance_m[i] < end_m]
+    return [point_at(start_m), *inner, point_at(end_m)]

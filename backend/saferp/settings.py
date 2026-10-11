@@ -129,3 +129,6 @@ MAX_WEATHER_POINTS = int(os.environ.get("MAX_WEATHER_POINTS", "500"))
 HEATMAP_MAX_POINTS = int(os.environ.get("HEATMAP_MAX_POINTS", "400"))
 HTTP_TIMEOUT_SECONDS = float(os.environ.get("HTTP_TIMEOUT_SECONDS", "12"))
 UPSTREAM_WORKERS = int(os.environ.get("UPSTREAM_WORKERS", "8"))
+HTTP_FORCE_IPV4 = env_bool("HTTP_FORCE_IPV4", False)
+# ISO country filter for place search (comma-separated, empty = worldwide).
+GEOCODE_COUNTRY = os.environ.get("GEOCODE_COUNTRY", "us")

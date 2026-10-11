@@ -112,3 +112,28 @@ def parse_open_meteo_location(payload: dict) -> HourlySeries:
         snowfall=col("snowfall"),
         temperature=col("temperature_2m"),
     )
+
+
+@dataclass(frozen=True)
+class Frame:
+    wind_mph: float | None
+    rain_in: float | None
+    snow_in: float | None
+
+
+def hourly_frame(series: HourlySeries, anchor: datetime, hour: int, wind_metric: str) -> Frame:
+    """Conditions during the hour [anchor + hour, anchor + hour + 1h) for the heatmap.
+
+    `anchor` is a whole UTC hour. Precipitation and gusts come from the bucket that closes the
+    hour; sustained wind from the instant that opens it.
+    """
+    base = round(series.index_of(anchor))
+    bucket, instant = base + hour + 1, base + hour
+    if not (instant >= 0 and bucket < series.length):
+        return Frame(None, None, None)
+    wind = series.wind_gust[bucket] if wind_metric == "gust" else series.wind_speed[instant]
+    return Frame(
+        wind_mph=wind,
+        rain_in=combine_rain(series.rain[bucket], series.showers[bucket]),
+        snow_in=series.snowfall[bucket],
+    )

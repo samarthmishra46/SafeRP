@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from .geo import LonLat, overlap_fraction
+from .geo import Footprint, LonLat
 
 MAX_ROUTES = 3
 MAX_SHARED_FRACTION = 0.80
@@ -44,7 +44,8 @@ def select_routes(
         return [], []
     ordered = sorted(usable, key=lambda c: c.duration_s)
     fastest = ordered[0].duration_s
-    selected: list[Candidate] = []
+    ref_lat = (ordered[0].coords[0][1] + ordered[0].coords[-1][1]) / 2
+    selected: list[tuple[Candidate, Footprint]] = []
     rejected: list[Rejection] = []
     for cand in ordered:
         if len(selected) >= max_routes:
@@ -52,13 +53,13 @@ def select_routes(
         if cand.duration_s > fastest * max_ratio:
             rejected.append(Rejection(cand.source, "too slow"))
             continue
+        fp = Footprint(cand.coords, ref_lat)
         too_similar = any(
-            max(overlap_fraction(cand.coords, s.coords), overlap_fraction(s.coords, cand.coords))
-            > max_shared
-            for s in selected
+            max(fp.shared_fraction(other), other.shared_fraction(fp)) > max_shared
+            for _, other in selected
         )
         if too_similar:
             rejected.append(Rejection(cand.source, "too similar"))
             continue
-        selected.append(cand)
-    return selected, rejected
+        selected.append((cand, fp))
+    return [c for c, _ in selected], rejected

@@ -20,12 +20,12 @@ export function TripSummary({ plan, onEdit }: { plan: PlanResponse; onEdit: () =
       }}
     >
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography variant="subtitle2" noWrap>
+        <Typography variant="subtitle2" component="p" noWrap>
           {short(origin?.label)} → {short(destination?.label)}
         </Typography>
         <Typography variant="caption" component="p">
-          {formatDateTime(plan.meta.departure)} · {formatWeight(plan.meta.weightLb)} · every{' '}
-          {plan.meta.intervalMi} mi
+          {formatDateTime(plan.meta.departure)} · {formatWeight(plan.meta.weightLb)} ·{' '}
+          {plan.meta.intervalMi}-mi checkpoints
         </Typography>
       </Box>
       <Button size="small" startIcon={<EditOutlined fontSize="small" />} onClick={onEdit}>

@@ -33,7 +33,12 @@ export function WhyThisRoute({ recommendation, routes }: Props) {
         Routes are ranked left to right: fewest No Travel miles, then Severe, then High, then lowest
         average risk, then shortest time.
       </Typography>
-      <Box sx={{ overflowX: 'auto' }}>
+      <Box
+        sx={{ overflowX: 'auto' }}
+        tabIndex={0}
+        role="region"
+        aria-label="Ranking table, scrollable"
+      >
         <Table size="small" aria-label="Route ranking comparison">
           <TableHead>
             <TableRow>

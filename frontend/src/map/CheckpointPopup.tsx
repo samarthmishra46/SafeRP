@@ -70,7 +70,9 @@ export function CheckpointPopup({ checkpoint: c, routeName, windMetric, pinned, 
           <Typography variant="overline" color="text.secondary" component="div">
             {routeName} · mile {formatMilesValue(c.distanceMi)}
           </Typography>
-          <Typography variant="subtitle2">ETA {formatDateTime(c.eta)}</Typography>
+          <Typography variant="subtitle2" component="p">
+            ETA {formatDateTime(c.eta)}
+          </Typography>
         </Box>
         {pinned && (
           <IconButton

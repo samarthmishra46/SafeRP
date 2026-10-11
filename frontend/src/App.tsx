@@ -9,12 +9,13 @@ import {
   useTheme,
 } from '@mui/material';
 import dayjs from 'dayjs';
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError } from './api/client';
 import { useHeatmap, usePlanTrip } from './api/hooks';
 import { Brand } from './components/Brand';
 import { EmptyState } from './components/EmptyState';
 import { Legend } from './components/Legend';
+import { MapErrorBoundary } from './components/MapErrorBoundary';
 import { PlanProgress } from './components/PlanProgress';
 import { Results } from './components/Results';
 import { PANEL_WIDTH, SHEET_PEEK, SidePanel } from './components/SidePanel';
@@ -71,10 +72,19 @@ export default function App() {
     [submit],
   );
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') useUi.getState().pinCheckpoint(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const padding = useMemo<MapPadding>(
     () =>
       mobile
-        ? { top: 56, right: 16, left: 16, bottom: window.innerHeight * SHEET_PEEK }
+        ? // legend above, timeline + collapsed sheet below
+          { top: 72, right: 16, left: 16, bottom: window.innerHeight * SHEET_PEEK + 96 }
         : { top: 16, right: 200, left: PANEL_WIDTH + 16, bottom: 140 },
     [mobile],
   );
@@ -112,19 +122,6 @@ export default function App() {
         bgcolor: 'background.default',
       }}
     >
-      <Suspense
-        fallback={
-          <Skeleton variant="rectangular" sx={{ position: 'absolute', inset: 0, height: '100%' }} />
-        }
-      >
-        <MapView
-          plan={plan}
-          heatmap={heatmap}
-          timelineStartMs={timelineStartMs}
-          padding={padding}
-        />
-      </Suspense>
-
       {plan && (
         <Box
           sx={
@@ -188,6 +185,30 @@ export default function App() {
           {body}
         </Stack>
       </SidePanel>
+
+      <Box
+        role="region"
+        aria-label="Map of route options"
+        sx={{ position: 'absolute', inset: 0, zIndex: 0 }}
+      >
+        <MapErrorBoundary>
+          <Suspense
+            fallback={
+              <Skeleton
+                variant="rectangular"
+                sx={{ position: 'absolute', inset: 0, height: '100%' }}
+              />
+            }
+          >
+            <MapView
+              plan={plan}
+              heatmap={heatmap}
+              timelineStartMs={timelineStartMs}
+              padding={padding}
+            />
+          </Suspense>
+        </MapErrorBoundary>
+      </Box>
     </Box>
   );
 }

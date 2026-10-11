@@ -141,13 +141,29 @@ export default function MapView({ plan, heatmap, timelineStartMs, padding }: Pro
     return heatLayerProps(heatLayer, mode, heatmap.spacingDeg, midLat, heatVisible);
   }, [heatmap, heatLayer, mode, heatVisible]);
 
+  // The focused checkpoint can belong to any route (e.g. hovering another card's risk strip).
   const focus = pinned ?? (hovered ? { routeId: hovered.routeId, index: hovered.index } : null);
-  const focusIndex = focus && focus.routeId === selected?.id ? focus.index : -1;
-  const highlightFilter = useMemo(
-    () => ['==', ['get', 'index'], focusIndex] as never,
-    [focusIndex],
+  const focusRoute = focus ? plan?.routes.find((r) => r.id === focus.routeId) : undefined;
+  const focusCheckpoint = focus ? focusRoute?.checkpoints[focus.index] : undefined;
+  const highlightData = useMemo<FeatureCollection>(
+    () =>
+      focusCheckpoint
+        ? {
+            type: 'FeatureCollection',
+            features: [
+              {
+                type: 'Feature',
+                properties: {},
+                geometry: {
+                  type: 'Point',
+                  coordinates: [focusCheckpoint.lon, focusCheckpoint.lat],
+                },
+              },
+            ],
+          }
+        : EMPTY_FC,
+    [focusCheckpoint],
   );
-  const focusCheckpoint = focusIndex >= 0 ? selected?.checkpoints[focusIndex] : undefined;
 
   // --- Truck positions at the slider time --------------------------------------------------
   const trucks = useMemo(() => {
@@ -275,8 +291,11 @@ export default function MapView({ plan, heatmap, timelineStartMs, padding }: Pro
           <Layer {...sLayers.noTravel} beforeId={labelLayerId} />
         </Source>
 
+        <Source id="highlight-src" type="geojson" data={highlightData}>
+          <Layer {...cLayers.highlight} />
+        </Source>
+
         <Source id="checkpoints-src" type="geojson" data={checkpointsData}>
-          <Layer {...cLayers.highlight} filter={highlightFilter} />
           <Layer {...cLayers.circle} />
           <Layer {...cLayers.label} />
         </Source>
@@ -294,11 +313,10 @@ export default function MapView({ plan, heatmap, timelineStartMs, padding }: Pro
           </Marker>
         ))}
 
-        {selected && focusCheckpoint && (
+        {focusRoute && focusCheckpoint && (
           <Popup
             longitude={focusCheckpoint.lon}
             latitude={focusCheckpoint.lat}
-            anchor="bottom"
             offset={16}
             closeButton={false}
             closeOnClick={false}
@@ -307,7 +325,7 @@ export default function MapView({ plan, heatmap, timelineStartMs, padding }: Pro
           >
             <CheckpointPopup
               checkpoint={focusCheckpoint}
-              routeName={selected.name}
+              routeName={focusRoute.name}
               windMetric={plan!.meta.windMetric}
               pinned={Boolean(pinned)}
               onClose={() => pinCheckpoint(null)}

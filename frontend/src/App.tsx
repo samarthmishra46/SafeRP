@@ -11,13 +11,14 @@ import {
 import dayjs from 'dayjs';
 import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { ApiError } from './api/client';
-import { usePlanTrip } from './api/hooks';
+import { useHeatmap, usePlanTrip } from './api/hooks';
 import { Brand } from './components/Brand';
 import { EmptyState } from './components/EmptyState';
 import { Legend } from './components/Legend';
 import { PlanProgress } from './components/PlanProgress';
 import { Results } from './components/Results';
 import { PANEL_WIDTH, SHEET_PEEK, SidePanel } from './components/SidePanel';
+import { TimelineBar } from './components/TimelineBar';
 import { TripForm } from './components/TripForm';
 import { TripSummary } from './components/TripSummary';
 import type { MapPadding } from './map/MapView';
@@ -43,6 +44,14 @@ export default function App() {
   const [editing, setEditing] = useState(true);
   const planMutation = usePlanTrip();
   const plan = planMutation.data;
+  const heatQuery = useHeatmap(plan?.meta.bbox);
+  const heatmap = heatQuery.data;
+  // Slider hour 0 is "now": the moment the forecast grid loaded, kept inside its anchor hour.
+  const timelineStartMs = useMemo(() => {
+    if (!heatmap) return 0;
+    const anchor = Date.parse(heatmap.anchor);
+    return Math.min(Math.max(heatQuery.dataUpdatedAt, anchor), anchor + 3_599_000);
+  }, [heatmap, heatQuery.dataUpdatedAt]);
 
   const submit = useCallback(() => {
     planMutation.mutate(toPlanRequest(useTrip.getState()), {
@@ -66,7 +75,7 @@ export default function App() {
     () =>
       mobile
         ? { top: 56, right: 16, left: 16, bottom: window.innerHeight * SHEET_PEEK }
-        : { top: 16, right: 16, left: PANEL_WIDTH + 16, bottom: 96 },
+        : { top: 16, right: 200, left: PANEL_WIDTH + 16, bottom: 140 },
     [mobile],
   );
 
@@ -108,7 +117,12 @@ export default function App() {
           <Skeleton variant="rectangular" sx={{ position: 'absolute', inset: 0, height: '100%' }} />
         }
       >
-        <MapView plan={plan} heatmap={undefined} timelineStartMs={0} padding={padding} />
+        <MapView
+          plan={plan}
+          heatmap={heatmap}
+          timelineStartMs={timelineStartMs}
+          padding={padding}
+        />
       </Suspense>
 
       {plan && (
@@ -116,10 +130,46 @@ export default function App() {
           sx={
             mobile
               ? { position: 'absolute', top: 8, left: 8, right: 56, zIndex: 1 }
-              : { position: 'absolute', right: 16, bottom: 40, zIndex: 1 }
+              : { position: 'absolute', right: 16, top: 96, zIndex: 1 }
           }
         >
           <Legend compact={mobile} />
+        </Box>
+      )}
+
+      {plan && !(mobile && sheetExpanded) && (
+        <Box
+          sx={
+            mobile
+              ? {
+                  position: 'absolute',
+                  left: 8,
+                  right: 8,
+                  bottom: `calc(${SHEET_PEEK * 100}dvh + 8px)`,
+                  zIndex: 1,
+                }
+              : {
+                  position: 'absolute',
+                  left: PANEL_WIDTH + 32,
+                  right: 16,
+                  bottom: 32, // clears the map attribution
+                  zIndex: 1,
+                  display: 'flex',
+                  justifyContent: 'center',
+                }
+          }
+        >
+          <Box sx={{ width: '100%', maxWidth: 880 }}>
+            <TimelineBar
+              plan={plan}
+              heatmap={heatmap}
+              loading={heatQuery.isFetching}
+              error={heatQuery.error}
+              onRetry={() => heatQuery.refetch()}
+              startMs={timelineStartMs}
+              compact={mobile}
+            />
+          </Box>
         </Box>
       )}
 

@@ -126,11 +126,13 @@ export function checkpointCode(level: number): string {
 /** Stops [value, colour]: faint tint for measurable weather, then risk colours at thresholds. */
 export function heatStops(layer: HeatLayer, mode: PaletteMode): [number, string][] {
   const c = riskPalette(mode);
+  // Sub-threshold tint: visible on both basemaps without muddying the dark one.
+  const slate = mode === 'light' ? '120,140,170' : '170,190,220';
   switch (layer) {
     case 'wind':
       return [
-        [12, 'rgba(120,140,170,0)'],
-        [18, 'rgba(120,140,170,0.45)'],
+        [12, `rgba(${slate},0)`],
+        [18, `rgba(${slate},${mode === 'light' ? 0.45 : 0.3})`],
         [25, c[1]],
         [35, c[2]],
         [45, c[3]],
@@ -166,7 +168,8 @@ export function heatLayerProps(
 ): LayerProps {
   const stops = heatStops(layer, mode).flat();
   // Pixel radius that covers one grid cell at zoom 0 (512 px world), grown 2x per zoom level.
-  const r0 = ((spacingDeg * 512) / 360) * (0.9 / Math.cos((midLat * Math.PI) / 180));
+  // Mercator stretches latitude by 1/cos(lat), so size for the taller (north-south) spacing.
+  const r0 = ((spacingDeg * 512) / 360) * (1.25 / Math.cos((midLat * Math.PI) / 180));
   return {
     id: 'heat',
     type: 'circle',
@@ -179,7 +182,7 @@ export function heatLayerProps(
         ...stops,
       ] as ExpressionSpecification,
       'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 0, r0, 16, r0 * 2 ** 16],
-      'circle-blur': 0.85,
+      'circle-blur': 1,
       'circle-opacity': mode === 'light' ? 0.6 : 0.55,
       'circle-pitch-alignment': 'map',
     },

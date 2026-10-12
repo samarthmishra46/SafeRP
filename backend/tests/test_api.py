@@ -183,11 +183,26 @@ def test_plan_mapbox_bad_token_is_502(upstreams):
     assert_error(plan(), 502, "upstream_error", "token was rejected")
 
 
-def test_plan_open_meteo_rate_limit_is_502(upstreams):
+def test_plan_open_meteo_rate_limit_is_502_with_reason(upstreams):
+    reason = "Hourly API request limit exceeded. Please try again in the next hour."
     upstreams.rsps.replace(
-        responses.GET, OPEN_METEO_URL, json={"error": True, "reason": "limit"}, status=429
+        responses.GET, OPEN_METEO_URL, json={"error": True, "reason": reason}, status=429
     )
-    assert_error(plan(), 502, "upstream_error", "rate limit")
+    assert_error(plan(), 502, "upstream_error", f"free-tier limit reached ({reason})")
+
+
+def test_open_meteo_api_key_uses_customer_endpoint(upstreams, settings):
+    import re as _re
+
+    settings.OPEN_METEO_API_KEY = "key123"
+    upstreams.rsps.add_callback(
+        responses.GET,
+        _re.compile(r"https://customer-api\.open-meteo\.com/v1/forecast.*"),
+        callback=upstreams._weather,
+    )
+    assert plan().status_code == 200
+    url = next(c.request.url for c in upstreams.rsps.calls if "open-meteo" in c.request.url)
+    assert url.startswith("https://customer-api.open-meteo.com/") and "apikey=key123" in url
 
 
 def test_plan_network_error_is_502(upstreams):

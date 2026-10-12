@@ -142,7 +142,8 @@ Backend (all optional except the first two in production):
 | `TRUCK_SPEED_FACTOR` | `1.0` | |
 | `FORECAST_HORIZON_HOURS` | `168` | |
 | `MAX_WEATHER_POINTS` | `500` | |
-| `HEATMAP_MAX_POINTS` | `400` | |
+| `HEATMAP_MAX_POINTS` | `400` | `render.yaml` sets 200 to save Open-Meteo quota. |
+| `OPEN_METEO_API_KEY` | — | Optional paid Open-Meteo key; uses its own quota instead of the free per-IP limits. |
 | `GEOCODE_COUNTRY` | `us` | Default only; the app sends the country picked in the form. |
 | `THROTTLE_PLAN` / `THROTTLE_HEATMAP` / `THROTTLE_GEOCODE` | `12/min` / `12/min` / `120/min` | |
 | `NUM_PROXIES` | `1` | Proxy hops in front of Django, used for per-IP throttling. |
@@ -180,8 +181,21 @@ Frontend: `VITE_API_BASE_URL`.
   `DJANGO_ALLOWED_HOSTS`. Render's own `*.onrender.com` hostname is allowed automatically.
 - **Plans are slower than locally.** The free instance has a small CPU share, so a long trip's
   first plan can take 10–20 s. Repeat plans come from the cache and are fast.
-- **A 502 says "Open-Meteo … rate limit".** The free weather API allows 600 location-weighted
-  calls per minute. Wait a minute, or add Redis so repeat plans hit the cache.
+- **"Open-Meteo is unavailable right now: free-tier limit reached (…)".** Open-Meteo's free API
+  allows 600 calls a minute, 5,000 an hour and 10,000 a day **per IP address**. Each forecast
+  location counts as one call, and the text in brackets says which limit was hit. A long trip plus
+  its heatmap is roughly 300–600 locations.
+  - Render's outbound IPs are shared with other Render services, so other people's calls can use
+    up the same quota.
+  - Each deploy or restart empties the in-memory cache, so testing right after deploys burns
+    quota fast.
+  - Fixes, cheapest first:
+    1. Wait for the limit to reset (a minute, an hour, or until the next day).
+    2. Keep `HEATMAP_MAX_POINTS` low (`render.yaml` sets 200), and use a 25- or 50-mile checkpoint
+       interval for long trips.
+    3. Add Redis (Render Key Value) so the cache survives deploys.
+    4. Run the backend somewhere with its own IP address, such as an Oracle Cloud free VM.
+    5. Set `OPEN_METEO_API_KEY` (paid Open-Meteo plan, with its own quota).
 
 ---
 

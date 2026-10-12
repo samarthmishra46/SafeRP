@@ -138,6 +138,11 @@ def clean_token(raw: str, name: str = "MAPBOX_ACCESS_TOKEN") -> str:
 MAPBOX_ACCESS_TOKEN_RAW_LENGTH = len(os.environ.get("MAPBOX_ACCESS_TOKEN", ""))  # for diagnostics
 MAPBOX_ACCESS_TOKEN = clean_token(os.environ.get("MAPBOX_ACCESS_TOKEN", ""))
 OPEN_METEO_URL = os.environ.get("OPEN_METEO_URL", "https://api.open-meteo.com/v1/forecast")
+# Optional paid Open-Meteo key; requests then go to the customer endpoint with their own quota.
+OPEN_METEO_API_KEY = os.environ.get("OPEN_METEO_API_KEY", "").strip()
+OPEN_METEO_CUSTOMER_URL = os.environ.get(
+    "OPEN_METEO_CUSTOMER_URL", "https://customer-api.open-meteo.com/v1/forecast"
+)
 MAPBOX_API_URL = os.environ.get("MAPBOX_API_URL", "https://api.mapbox.com")
 
 # "gust" (default) or "sustained": which wind value feeds the risk rules.

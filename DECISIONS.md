@@ -385,3 +385,17 @@ do not hit them.
 - **Throttling behind Render's proxy is unverified.** DRF takes the client IP from
   `X-Forwarded-For` with `NUM_PROXIES=1`. If Render's chain has more hops, users could share one
   rate-limit bucket; adjust `NUM_PROXIES` if plans are throttled unexpectedly.
+
+## Open-Meteo quota on shared hosting
+
+- **Open-Meteo's free limits are per IP**: 600 calls/min, 5,000/hour, 10,000/day, one call per
+  location. On Render, even a 6-location trip was refused, because outbound IPs are shared between
+  Render services and testing after each deploy refetches everything. The 429 error now includes
+  Open-Meteo's own reason, so it's clear whether the minute, hour or day limit was hit.
+- **Mitigations in config, not code paths:**
+  - `render.yaml` sets `HEATMAP_MAX_POINTS=200` (the brief's ~400 remains the code default), which
+    halves the heatmap's calls.
+  - An optional `OPEN_METEO_API_KEY` switches requests to Open-Meteo's customer endpoint with its
+    own quota.
+  - Redis (Render Key Value) keeps the cache across deploys.
+  - A host with a dedicated IP (e.g. an Oracle free VM) has its own quota.

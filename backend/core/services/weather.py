@@ -49,9 +49,19 @@ def _fetch_chunk(keys: list[WeatherKey]) -> list[HourlySeries]:
         "past_hours": PAST_HOURS,
         "forecast_hours": settings.FORECAST_HORIZON_HOURS + 2,
     }
-    status, body = get_json(SERVICE, settings.OPEN_METEO_URL, params)
+    url = settings.OPEN_METEO_URL
+    if settings.OPEN_METEO_API_KEY:
+        # Paid plan: its own quota instead of the free per-IP limits.
+        url = settings.OPEN_METEO_CUSTOMER_URL
+        params["apikey"] = settings.OPEN_METEO_API_KEY
+    status, body = get_json(SERVICE, url, params)
     if status == 429:
-        raise UpstreamError(SERVICE, "the free-tier rate limit was reached, try again in a minute")
+        # Open-Meteo says which limit was hit ("Minutely/Hourly/Daily API request limit
+        # exceeded..."). The free limits are per IP, and cloud hosts often share outbound IPs.
+        reason = body.get("reason") if isinstance(body, dict) else None
+        raise UpstreamError(
+            SERVICE, f"free-tier limit reached ({reason})" if reason else "free-tier limit reached"
+        )
     if status != 200:
         reason = body.get("reason") if isinstance(body, dict) else None
         raise UpstreamError(SERVICE, reason or f"unexpected response (HTTP {status})")

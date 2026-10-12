@@ -30,5 +30,11 @@ services:
       # Without this, every new connection to Mapbox stalls ~15 s on IPv6 DNS lookups.
       - key: HTTP_FORCE_IPV4
         value: "true"
+      # Open-Meteo's free quota is per IP, and Render's outbound IPs are shared. A 200-point
+      # heatmap grid halves the weather calls per trip; raise to 400 with a dedicated IP or key.
+      - key: HEATMAP_MAX_POINTS
+        value: "200"
+      - key: OPEN_METEO_API_KEY # optional paid Open-Meteo key (own quota); leave blank
+        sync: false
       - key: REDIS_URL # optional, e.g. an Upstash rediss:// URL; leave blank to use memory
         sync: false

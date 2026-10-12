@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from django.conf import settings
@@ -17,6 +17,7 @@ from core.domain.evaluate import (
 )
 from core.domain.geo import RouteProfile, build_profile, simplify_indices
 from core.domain.hazards import HazardRow, hazard_row
+from core.domain.rest import RestPlan, Stop, schedule_stops, total_stop_s
 from core.domain.weather import floor_hour, hourly_frame
 from core.errors import PlanningError
 
@@ -40,6 +41,7 @@ class PlanRequest:
     departure: datetime
     weight_lb: int
     interval_mi: int
+    rest_plan: RestPlan | None = None
 
 
 @dataclass(frozen=True)
@@ -51,6 +53,12 @@ class PlannedRoute:
     profile: RouteProfile
     checkpoints: list[Checkpoint]
     simplified: list[int]  # indices into profile.coords kept for display
+    stops: list[Stop] = field(default_factory=list)
+
+    @property
+    def trip_duration_s(self) -> float:
+        """Driving time plus any rest stops: what decides arrival and travel-time ranking."""
+        return self.profile.duration_s + total_stop_s(self.stops)
 
 
 @dataclass(frozen=True)
@@ -91,6 +99,7 @@ def plan_trip(req: PlanRequest, now: datetime | None = None) -> PlanResult:
             total_duration_s=p["duration_s"],
         )
         letter = "ABC"[i]
+        stops = schedule_stops(profile.duration_s, req.rest_plan)
         routes.append(
             PlannedRoute(
                 id=letter,
@@ -98,13 +107,14 @@ def plan_trip(req: PlanRequest, now: datetime | None = None) -> PlanResult:
                 via=p.get("summary", ""),
                 source=cand.source,
                 profile=profile,
-                checkpoints=place_checkpoints(profile, req.interval_mi, req.departure),
+                checkpoints=place_checkpoints(profile, req.interval_mi, req.departure, stops),
                 simplified=simplify_indices(profile.coords, SIMPLIFY_TOLERANCE_M),
+                stops=stops,
             )
         )
 
     horizon_end = forecast_horizon_end(now)
-    latest_arrival = max(req.departure + timedelta(seconds=r.profile.duration_s) for r in routes)
+    latest_arrival = max(req.departure + timedelta(seconds=r.trip_duration_s) for r in routes)
     if latest_arrival > horizon_end:
         raise PlanningError(
             f"This trip would arrive {_fmt_utc(latest_arrival)}, after the forecast ends "
@@ -125,7 +135,7 @@ def plan_trip(req: PlanRequest, now: datetime | None = None) -> PlanResult:
     try:
         evaluation = evaluate_plan(
             [
-                RouteInput(r.name, r.checkpoints, r.profile.distance_m, r.profile.duration_s)
+                RouteInput(r.name, r.checkpoints, r.profile.distance_m, r.trip_duration_s)
                 for r in routes
             ],
             forecasts,

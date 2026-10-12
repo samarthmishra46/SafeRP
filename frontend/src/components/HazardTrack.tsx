@@ -2,7 +2,7 @@ import { Box, Typography, useTheme } from '@mui/material';
 import { memo, useMemo } from 'react';
 import type { RiskLevel, Route } from '../api/types';
 import { formatSliderTime } from '../lib/format';
-import { HOUR_MS, hourlyWorstLevels, trackFraction } from '../lib/timeline';
+import { HOUR_MS, hourlyWorstLevels, trackFraction, type HourCell } from '../lib/timeline';
 import { RISK_LABEL, riskColor } from '../theme/risk';
 import { MONO } from '../theme/theme';
 
@@ -11,13 +11,22 @@ interface Props {
   anchorMs: number;
 }
 
-function describe(levels: (RiskLevel | null)[], route: Route): string {
-  const driving = levels.filter((l) => l !== null) as RiskLevel[];
-  if (driving.length === 0) return `${route.name} is not on the road during the next 48 hours.`;
+function describe(levels: HourCell[], route: Route): string {
+  const driving = levels.filter((l): l is RiskLevel => l !== null && l !== 'rest');
+  const rests = levels.filter((l) => l === 'rest').length;
+  const restNote = rests ? ` Resting for ${rests} h.` : '';
+  if (driving.length === 0)
+    return `${route.name} is not on the road during the next 48 hours.${restNote}`;
   const worst = Math.max(...driving) as RiskLevel;
-  if (worst === 0) return `${route.name}: Low risk for every hour on the road.`;
+  if (worst === 0) return `${route.name}: Low risk for every hour on the road.${restNote}`;
   const first = levels.findIndex((l) => l === worst);
-  return `${route.name}: worst risk ${RISK_LABEL[worst]}, first at +${first} h.`;
+  return `${route.name}: worst risk ${RISK_LABEL[worst]}, first at +${first} h.${restNote}`;
+}
+
+function cellTitle(level: HourCell, at: number): string | undefined {
+  if (level === null) return undefined;
+  const when = formatSliderTime(new Date(at));
+  return level === 'rest' ? `${when}: resting` : `${when}: ${RISK_LABEL[level]}`;
 }
 
 /**
@@ -25,7 +34,8 @@ function describe(levels: (RiskLevel | null)[], route: Route): string {
  * selected route meets during that hour (ETA forecast), plus departure and arrival markers.
  */
 export const HazardTrack = memo(function HazardTrack({ route, anchorMs }: Props) {
-  const mode = useTheme().palette.mode;
+  const theme = useTheme();
+  const mode = theme.palette.mode;
   const levels = useMemo(() => hourlyWorstLevels(route, anchorMs), [route, anchorMs]);
   const markers = [
     { key: 'dep', label: 'Dep', time: Date.parse(route.departure), name: 'Departure' },
@@ -54,14 +64,20 @@ export const HazardTrack = memo(function HazardTrack({ route, anchorMs }: Props)
         {levels.map((level, h) => (
           <Box
             key={h}
-            title={
-              level === null
-                ? undefined
-                : `${formatSliderTime(new Date(anchorMs + h * HOUR_MS))}: ${RISK_LABEL[level]}`
-            }
+            title={cellTitle(level, anchorMs + h * HOUR_MS)}
             sx={{
               flex: 1,
-              bgcolor: level === null ? 'transparent' : riskColor(level, mode),
+              bgcolor:
+                level === null
+                  ? 'transparent'
+                  : level === 'rest'
+                    ? undefined
+                    : riskColor(level, mode),
+              // Rest hours are hatched: parked, not exposed to road risk.
+              backgroundImage:
+                level === 'rest'
+                  ? `repeating-linear-gradient(135deg, ${theme.palette.text.secondary} 0 1.5px, transparent 1.5px 4px)`
+                  : undefined,
               opacity: level === 0 ? 0.55 : 1,
             }}
           />

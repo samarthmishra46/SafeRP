@@ -279,3 +279,45 @@ do not hit them.
 - **Not covered:** software rendering. Under SwiftShader (no GPU), every repaint takes ~300 ms
   with or without animations. A machine without GPU acceleration should switch the animations
   off; they stay off once switched.
+
+## Rest stops (optional, driver-chosen)
+
+- **Everything is optional and nothing is enforced.** One "Plan rest stops" checkbox reveals the
+  settings. Short breaks (every N h of driving, lasting M min) and the overnight rest (after N h of
+  driving, resting H h) each have their own switch, and every value is editable. SafeRP is a
+  planning aid, not a logbook: it doesn't know the driver's earlier hours and doesn't judge
+  compliance.
+- **Country presets only fill in values**, as a starting point, with typical limits researched for
+  this feature:
+
+  | Preset | Short break | Overnight rest |
+  | --- | --- | --- |
+  | US (FMCSA) | 30 min after 8 h of driving | 10 h after 11 h of driving |
+  | Canada (south of 60°N) | none (no separate short-break rule) | 10 h after 13 h of driving |
+  | EU / UK (Reg. 561/2006) | 45 min after 4.5 h | 11 h after 9 h |
+  | Australia (standard hours) | 15 min after 5¼ h | 7 h stationary rest after 12 h of work |
+  | India | 30 min after 5 h | 10 h after 8 h |
+
+  The Australian rule counts work time, not just driving, and India's rest length isn't set out in
+  the same way. These presets approximate the law; that's acceptable precisely because nothing
+  is enforced.
+- **Clocks.**
+  - A short break is due after the set driving time since the last stop of any kind.
+  - The overnight rest is due after the set driving time since the last overnight rest. Short
+    breaks don't reset that clock, but an overnight rest resets the break clock.
+  - When both fall due at once, the overnight rest is taken (it covers the break).
+  - No stop is scheduled within 15 minutes of driving before arrival.
+- **Stops change the ETAs, and so the risk.**
+  - Checkpoint ETAs are clock time: driving time plus every stop already taken. A point reached
+    exactly as a stop begins is reached before it.
+  - Arrival time, the forecast-horizon check, the later-departure search and the ranking's travel
+    time all use trip time (driving plus stops).
+  - The route cards show both "Drive time" and "With stops".
+- **Where stops are shown.** A stop's position is where its driving time runs out on the route.
+  This is not snapped to a real truck stop yet; that would need a points-of-interest source.
+  - Stops for the selected route appear as coffee (break) and moon (overnight) markers, with a
+    tooltip giving the length, times and mile.
+  - During a stop, the truck marker stays parked and shows the same icon.
+  - On the slider's hazard strip, rest hours are hatched and not counted as road risk.
+- **Weather while parked** doesn't count toward risk miles. Risk is per mile driven, and the
+  checkpoint forecasts already use the delayed ETAs.

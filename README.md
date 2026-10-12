@@ -33,6 +33,13 @@ responses for illustration.*
   - Truck markers show where each truck would be at the slider time.
   - Scrubbing never makes a network request. The slider explores the weather; it never changes
     risk or the recommendation.
+- **Optional rest stops:**
+  - Tick "Plan rest stops" to add short breaks and/or an overnight rest, each with its own switch
+    and editable timing. Presets (US, Canada, EU/UK, Australia, India) only fill in typical values;
+    nothing is enforced.
+  - Stops push back every later ETA, so they change the forecast each checkpoint is scored on.
+  - They appear as ☕ / 🌙 markers on the map, the truck parks there on the slider, and they are
+    counted in each card's trip time and arrival.
 - **Corridor heatmap** for wind, rain or snow, coloured at the risk thresholds.
 - **Weather animations:**
   - Falling rain streaks, drifting snow, and wind streaks pointing downwind appear wherever the
@@ -135,17 +142,18 @@ cd backend  && uv run pytest && uv run ruff check . && uv run ruff format --chec
 cd frontend && npm test && npm run lint && npm run typecheck && npm run format:check
 ```
 
-- **Backend:** 143 pytest cases. They include every threshold edge
+- **Backend:** 158 pytest cases. They include every threshold edge
   (24.9/25/34.9/35/44.9/45/54.9/55; 0.09/0.10/0.25/0.50/1.00/1.01; 0.49/0.5/1.0/2.0/3.0/3.01), every
   load rule at 30,000/30,001/40,000/40,001 lb, mile attribution, ETA interpolation, ranking
   including ties, and API tests against recorded Mapbox/Open-Meteo responses
   (`tests/fixtures`, re-recordable with `uv run python scripts/record_fixtures.py`), plus the hourly
-  hazard levels behind the animations.
-- **Frontend:** 59 Vitest cases. They cover formatting, geometry, form validation, route cards, the
+  hazard levels behind the animations and the rest-stop scheduler.
+- **Frontend:** 67 Vitest cases. They cover formatting, geometry, form validation, route cards, the
   risk strip's keyboard model, the results panel and the No Travel banner. They also cover the
   slider: truck position at an hour, the worst-level hazard timeline, departure jump, speeds, and
   keyboard. And the animations: dominant hazard, the Moderate-or-higher filter, wind rotation,
-  and the frame-capped, pausable animation clock.
+  and the frame-capped, pausable animation clock. And rest stops: settings and presets, the
+  parked truck, and rest hours on the hazard timeline.
 
 ## Configuration
 
@@ -191,13 +199,17 @@ names the service; never a stack trace). Responses are gzip-compressed.
   "destination": { "lon": -95.37, "lat": 29.76, "label": "Houston, Texas" },
   "departure": "2026-10-12T15:00:00Z",
   "weightLb": 36000,          // 1,000–80,000
-  "intervalMi": 25            // 10 | 25 | 50
+  "intervalMi": 25,           // 10 | 25 | 50
+  "restPlan": {               // optional; either part may be null
+    "breaks": { "everyH": 8, "minutes": 30 },
+    "overnight": { "afterDrivingH": 11, "hours": 10 }
+  }
 }
 // → { routes: [{ id, name, via, rank, distanceMi, durationS, departure, arrival,
-//               geometry, cumDurationS, segments[], checkpoints[], summary,
+//               tripDurationS, stops[], geometry, cumDurationS, segments[], checkpoints[], summary,
 //               hourly: { wind[], rain[], snow[], windDir[] } }],
 //     recommendation: { routeId, reason, notRecommended, suggestion, ranking[] },
-//     notices: [], meta: { windMetric, intervalMi, weightLb, departure, bbox,
+//     notices: [], meta: { windMetric, intervalMi, weightLb, departure, bbox, restPlan,
 //                          hourlyAnchor, hourlyHours } }
 ```
 

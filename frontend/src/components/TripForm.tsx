@@ -29,6 +29,7 @@ import {
   type Interval,
 } from '../state/tripStore';
 import { PlaceAutocomplete } from './PlaceAutocomplete';
+import { RestStopFields } from './RestStopFields';
 
 interface Props {
   onSubmit: () => void;
@@ -163,6 +164,8 @@ export function TripForm({ onSubmit, pending }: Props) {
             ))}
           </ToggleButtonGroup>
         </Box>
+
+        <RestStopFields errors={shown} />
 
         <Button
           type="submit"

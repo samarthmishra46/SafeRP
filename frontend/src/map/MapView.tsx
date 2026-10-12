@@ -20,7 +20,7 @@ import { AnimationToggleControl } from './AnimationToggleControl';
 import { CheckpointPopup } from './CheckpointPopup';
 import { CorridorWeatherLayers, RouteWeatherOverlay } from './HourLayers';
 import { MAP_STYLES, checkpointCode, checkpointLayers, routeLayers, segmentLayers } from './layers';
-import { EndpointMarker } from './markers';
+import { EndpointMarker, StopMarker } from './markers';
 import { WeatherClock, registerHazardImages } from './weatherAnimation';
 
 export interface MapPadding {
@@ -298,6 +298,10 @@ export default function MapView({ plan, heatmap, timelineAnchorMs, padding }: Pr
           <Layer {...cLayers.circle} />
           <Layer {...cLayers.label} />
         </Source>
+
+        {selected?.stops.map((stop) => (
+          <StopMarker key={stop.clockStartS} stop={stop} routeName={selected.name} />
+        ))}
 
         <RouteWeatherOverlay
           plan={plan}

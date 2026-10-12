@@ -25,10 +25,11 @@ import { visuallyHidden } from '@mui/utils';
 import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { HeatLayer, HeatmapResponse, PlanResponse, Route } from '../api/types';
 import { formatHourOffset, formatSliderTime } from '../lib/format';
-import { SLIDER_HOURS, departureHour, sliderTimeMs } from '../lib/timeline';
+import { SLIDER_HOURS, departureHour, sliderTimeMs, truckStateAtHour } from '../lib/timeline';
 import { useRafThrottle } from '../lib/useRafThrottle';
 import { heatStops } from '../map/layers';
 import { useUi, type PlaySpeed } from '../state/uiStore';
+import { STOP_LABEL } from '../theme/stopIcons';
 import { HazardTrack } from './HazardTrack';
 
 interface Props {
@@ -266,8 +267,10 @@ function HourScrubber({
     const arrivals = plan.routes.map((r) => Date.parse(r.arrival));
     if (at < dep) return `Departs in ${Math.ceil((dep - at) / 3_600_000)} h`;
     if (at > Math.max(...arrivals)) return 'All routes arrived';
+    const resting = truckStateAtHour(route, anchorMs, shownHour)?.resting;
+    if (resting) return `${route.name}: ${STOP_LABEL[resting].toLowerCase()}`;
     return 'Trucks shown on map';
-  }, [plan, at]);
+  }, [plan, at, route, anchorMs, shownHour]);
 
   return (
     <>

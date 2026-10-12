@@ -4,6 +4,7 @@ import { memo } from 'react';
 import type { RiskLevel, Route } from '../api/types';
 import { formatDuration, formatMiles, formatMilesValue, formatTime } from '../lib/format';
 import { MILES_KEY, RISK_LABEL, RISK_LEVELS } from '../theme/risk';
+import { STOP_ICON } from '../theme/stopIcons';
 import { RiskBadge, RiskSwatch } from './RiskBadge';
 import { RiskStrip } from './RiskStrip';
 
@@ -83,8 +84,12 @@ export const RouteCard = memo(function RouteCard({
         <Stack direction="row" sx={{ mt: 1, gap: 2, flexWrap: 'wrap' }}>
           <Stat label="Distance" value={formatMiles(route.distanceMi)} />
           <Stat label="Drive time" value={formatDuration(route.durationS)} />
+          {route.stops.length > 0 && (
+            <Stat label="With stops" value={formatDuration(route.tripDurationS)} />
+          )}
           <Stat label="Arrives" value={formatTime(route.arrival, new Date(route.departure))} />
         </Stack>
+        {route.stops.length > 0 && <StopSummary route={route} />}
       </ButtonBase>
 
       <RiskStrip route={route} />
@@ -137,5 +142,30 @@ function Stat({ label, value }: { label: string; value: string }) {
         {value}
       </Typography>
     </Box>
+  );
+}
+
+function StopSummary({ route }: { route: Route }) {
+  const counts = (['break', 'overnight'] as const)
+    .map((kind) => ({ kind, n: route.stops.filter((s) => s.kind === kind).length }))
+    .filter((c) => c.n > 0);
+  return (
+    <Stack direction="row" sx={{ mt: 1, gap: 1.5, flexWrap: 'wrap' }}>
+      {counts.map(({ kind, n }) => {
+        const Icon = STOP_ICON[kind];
+        const label =
+          kind === 'break'
+            ? `${n} break${n > 1 ? 's' : ''}`
+            : `${n} overnight rest${n > 1 ? 's' : ''}`;
+        return (
+          <Stack key={kind} direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+            <Icon sx={{ fontSize: 15, color: 'text.secondary' }} aria-hidden />
+            <Typography variant="caption" sx={{ color: 'text.primary' }}>
+              {label}
+            </Typography>
+          </Stack>
+        );
+      })}
+    </Stack>
   );
 }

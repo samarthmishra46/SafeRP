@@ -31,7 +31,8 @@ export function WhyThisRoute({ recommendation, routes }: Props) {
       </Typography>
       <Typography variant="caption" component="p" sx={{ mb: 1 }}>
         Routes are ranked left to right: fewest No Travel miles, then Severe, then High, then lowest
-        average risk, then shortest time.
+        average risk, then shortest time
+        {routes.some((r) => r.stops.length > 0) ? ' (including rest stops)' : ''}.
       </Typography>
       <Box
         sx={{ overflowX: 'auto' }}

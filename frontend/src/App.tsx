@@ -126,7 +126,7 @@ export default function App() {
               : { position: 'absolute', right: 16, top: 96, zIndex: 1 }
           }
         >
-          <Legend compact={mobile} />
+          <Legend compact={mobile} showStops={plan.routes.some((r) => r.stops.length > 0)} />
         </Box>
       )}
 

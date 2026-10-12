@@ -8,6 +8,7 @@ from rest_framework import serializers
 from core.domain.checkpoints import ALLOWED_INTERVALS_MI
 from core.domain.geo import haversine_m
 from core.domain.grid import BBox
+from core.domain.rest import RestPlan
 
 MIN_WEIGHT_LB = 1_000
 MAX_WEIGHT_LB = 80_000
@@ -20,6 +21,34 @@ class PlaceSerializer(serializers.Serializer):
     lon = serializers.FloatField(min_value=-180, max_value=180)
     lat = serializers.FloatField(min_value=-85, max_value=85)
     label = serializers.CharField(max_length=300, required=False, allow_blank=True, default="")
+
+
+class BreaksSerializer(serializers.Serializer):
+    everyH = serializers.FloatField(min_value=0.5, max_value=24)
+    minutes = serializers.IntegerField(min_value=5, max_value=240)
+
+
+class OvernightSerializer(serializers.Serializer):
+    afterDrivingH = serializers.FloatField(min_value=1, max_value=24)
+    hours = serializers.FloatField(min_value=1, max_value=48)
+
+
+class RestPlanSerializer(serializers.Serializer):
+    """Optional, driver-chosen rest stops. Either part may be omitted or null."""
+
+    breaks = BreaksSerializer(required=False, allow_null=True, default=None)
+    overnight = OvernightSerializer(required=False, allow_null=True, default=None)
+
+    def to_rest_plan(self, data) -> RestPlan | None:
+        breaks, overnight = data.get("breaks"), data.get("overnight")
+        if not breaks and not overnight:
+            return None
+        return RestPlan(
+            break_every_s=breaks["everyH"] * 3600 if breaks else None,
+            break_s=breaks["minutes"] * 60 if breaks else 0.0,
+            max_daily_drive_s=overnight["afterDrivingH"] * 3600 if overnight else None,
+            overnight_s=overnight["hours"] * 3600 if overnight else 0.0,
+        )
 
 
 class PlanRequestSerializer(serializers.Serializer):
@@ -39,6 +68,7 @@ class PlanRequestSerializer(serializers.Serializer):
         default=25,
         error_messages={"invalid_choice": "Checkpoint interval must be 10, 25 or 50 miles."},
     )
+    restPlan = RestPlanSerializer(required=False, allow_null=True, default=None)
 
     def validate_departure(self, value: datetime) -> datetime:
         now = self.context.get("now") or datetime.now(UTC)

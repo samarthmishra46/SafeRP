@@ -53,3 +53,29 @@ describe('RiskStrip keyboard', () => {
     expect(useUi.getState().pinned).toBeNull();
   });
 });
+
+describe('RouteCard rest stops', () => {
+  it('shows trip time with stops and stop counts', () => {
+    const route = makeRoute('A', [0, 0], { durationS: 12 * 3600, tripDurationS: 22.5 * 3600 });
+    const stop = {
+      lon: 0,
+      lat: 0,
+      distanceMi: 1,
+      start: '',
+      end: '',
+      driveElapsedS: 0,
+      clockStartS: 0,
+    };
+    route.stops = [
+      { ...stop, kind: 'break', durationS: 1800 },
+      { ...stop, kind: 'overnight', durationS: 36000 },
+    ];
+    renderWithProviders(
+      <RouteCard route={route} recommended={false} selected onSelect={() => {}} />,
+    );
+    expect(screen.getByText('With stops')).toBeInTheDocument();
+    expect(screen.getByText('22 h 30 min')).toBeInTheDocument();
+    expect(screen.getByText('1 break')).toBeInTheDocument();
+    expect(screen.getByText('1 overnight rest')).toBeInTheDocument();
+  });
+});

@@ -55,9 +55,13 @@ export interface Route {
   source: string;
   rank: number;
   distanceMi: number;
+  /** Driving time only. */
   durationS: number;
+  /** Driving time plus rest stops; `arrival` = departure + this. */
+  tripDurationS: number;
   departure: string;
   arrival: string;
+  stops: RestStop[];
   geometry: LngLat[];
   cumDurationS: number[];
   segments: Segment[];
@@ -65,6 +69,27 @@ export interface Route {
   summary: { miles: MilesByLevel; avgRisk: number; maxLevel: RiskLevel };
   /** Per slider hour: one level digit per checkpoint per factor, plus wind direction (FROM). */
   hourly: HourlyHazards;
+}
+
+export type StopKind = 'break' | 'overnight';
+
+export interface RestStop {
+  kind: StopKind;
+  lon: number;
+  lat: number;
+  distanceMi: number;
+  start: string;
+  end: string;
+  durationS: number;
+  /** Driving time completed when the stop starts. */
+  driveElapsedS: number;
+  /** Clock time since departure when the stop starts. */
+  clockStartS: number;
+}
+
+export interface RestPlan {
+  breaks: { everyH: number; minutes: number } | null;
+  overnight: { afterDrivingH: number; hours: number } | null;
 }
 
 export interface HourlyHazards {
@@ -103,6 +128,7 @@ export interface PlanResponse {
     weightLb: number;
     departure: string;
     bbox: [number, number, number, number];
+    restPlan: RestPlan | null;
     /** Hour 0 of `routes[].hourly` (a whole UTC hour). */
     hourlyAnchor: string;
     hourlyHours: number;
@@ -115,6 +141,7 @@ export interface PlanRequest {
   departure: string;
   weightLb: number;
   intervalMi: 10 | 25 | 50;
+  restPlan?: RestPlan | null;
 }
 
 export type HeatLayer = 'wind' | 'rain' | 'snow';

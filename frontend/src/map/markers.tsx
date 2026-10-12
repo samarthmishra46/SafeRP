@@ -1,7 +1,9 @@
 import LocalShippingRounded from '@mui/icons-material/LocalShippingRounded';
-import { Box } from '@mui/material';
+import { Box, Tooltip } from '@mui/material';
 import { Marker } from 'react-map-gl/maplibre';
-import type { LngLat } from '../api/types';
+import type { LngLat, RestStop, StopKind } from '../api/types';
+import { formatDuration, formatMilesValue, formatSliderTime } from '../lib/format';
+import { STOP_ICON, STOP_LABEL } from '../theme/stopIcons';
 import { MONO } from '../theme/theme';
 
 export function EndpointMarker({
@@ -32,11 +34,24 @@ export function EndpointMarker({
   );
 }
 
-export function TruckMarker({ label, selected }: { label: string; selected: boolean }) {
+export function TruckMarker({
+  label,
+  selected,
+  resting = null,
+}: {
+  label: string;
+  selected: boolean;
+  resting?: StopKind | null;
+}) {
+  const Icon = resting ? STOP_ICON[resting] : LocalShippingRounded;
   return (
     <Box
       role="img"
-      aria-label={`Truck position on route ${label}`}
+      aria-label={
+        resting
+          ? `Truck on route ${label}, stopped for ${STOP_LABEL[resting].toLowerCase()}`
+          : `Truck position on route ${label}`
+      }
       sx={{
         display: 'flex',
         alignItems: 'center',
@@ -57,8 +72,42 @@ export function TruckMarker({ label, selected }: { label: string; selected: bool
         pointerEvents: 'none',
       }}
     >
-      <LocalShippingRounded sx={{ fontSize: 15 }} />
+      <Icon sx={{ fontSize: 15 }} />
       {label}
     </Box>
+  );
+}
+
+/** A rest stop on the selected route: coffee cup for a break, moon for an overnight rest. */
+export function StopMarker({ stop, routeName }: { stop: RestStop; routeName: string }) {
+  const Icon = STOP_ICON[stop.kind];
+  const text = `${STOP_LABEL[stop.kind]} on ${routeName}, ${formatDuration(stop.durationS)}: ${formatSliderTime(
+    new Date(stop.start),
+  )} to ${formatSliderTime(new Date(stop.end))}, mile ${formatMilesValue(stop.distanceMi)}`;
+  return (
+    <Marker longitude={stop.lon} latitude={stop.lat} anchor="center">
+      <Tooltip title={text}>
+        <Box
+          role="img"
+          tabIndex={0}
+          aria-label={text}
+          sx={{
+            width: 26,
+            height: 26,
+            borderRadius: '50%',
+            display: 'grid',
+            placeItems: 'center',
+            bgcolor: 'background.paper',
+            color: 'text.primary',
+            border: '2px solid',
+            borderColor: 'text.primary',
+            boxShadow: 3,
+            cursor: 'default',
+          }}
+        >
+          <Icon sx={{ fontSize: 15 }} />
+        </Box>
+      </Tooltip>
+    </Marker>
   );
 }

@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo } from 'react';
 import { Layer, Marker, Source } from 'react-map-gl/maplibre';
 import type { HeatmapResponse, PlanResponse } from '../api/types';
 import { gridHazardFeatures, routeHazardFeatures } from '../lib/hazards';
-import { truckPositionAtHour } from '../lib/timeline';
+import { truckStateAtHour } from '../lib/timeline';
 import { useUi } from '../state/uiStore';
 import { heatLayerProps, weatherLayers } from './layers';
 import { TruckMarker } from './markers';
@@ -132,8 +132,8 @@ export const RouteWeatherOverlay = memo(function RouteWeatherOverlay({
     if (!plan || !heatmap) return [];
     return plan.routes
       .flatMap((r) => {
-        const pos = truckPositionAtHour(r, anchorMs, hour);
-        return pos ? [{ id: r.id, pos, selected: r.id === selectedId }] : [];
+        const state = truckStateAtHour(r, anchorMs, hour);
+        return state ? [{ id: r.id, ...state, selected: r.id === selectedId }] : [];
       })
       .sort((a, b) => Number(a.selected) - Number(b.selected)); // selected truck drawn on top
   }, [plan, heatmap, anchorMs, hour, selectedId]);
@@ -145,7 +145,7 @@ export const RouteWeatherOverlay = memo(function RouteWeatherOverlay({
       </Source>
       {trucks.map((t) => (
         <Marker key={t.id} longitude={t.pos[0]} latitude={t.pos[1]} anchor="center">
-          <TruckMarker label={t.id} selected={t.selected} />
+          <TruckMarker label={t.id} selected={t.selected} resting={t.resting} />
         </Marker>
       ))}
     </>

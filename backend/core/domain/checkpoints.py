@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from .geo import RouteProfile, interpolate_at_distance, miles_to_meters
+from .rest import Stop, clock_elapsed
 
 ALLOWED_INTERVALS_MI = (10, 25, 50)
 # A regular checkpoint this close to the destination is merged into it.
@@ -38,20 +40,28 @@ def checkpoint_distances(total_m: float, interval_mi: float) -> list[float]:
 
 
 def place_checkpoints(
-    profile: RouteProfile, interval_mi: float, departure: datetime
+    profile: RouteProfile,
+    interval_mi: float,
+    departure: datetime,
+    stops: Sequence[Stop] = (),
 ) -> list[Checkpoint]:
-    """Checkpoints with ETAs interpolated from the route's cumulative durations."""
+    """Checkpoints with ETAs interpolated from the route's cumulative durations.
+
+    `elapsed_s` is clock time since departure, so it includes any rest stops taken before the
+    checkpoint is reached.
+    """
     checkpoints = []
     for i, d in enumerate(checkpoint_distances(profile.distance_m, interval_mi)):
         p = interpolate_at_distance(profile, d)
+        elapsed = clock_elapsed(p.elapsed_s, list(stops))
         checkpoints.append(
             Checkpoint(
                 index=i,
                 lon=p.lon,
                 lat=p.lat,
                 distance_m=p.distance_m,
-                elapsed_s=p.elapsed_s,
-                eta=departure + timedelta(seconds=p.elapsed_s),
+                elapsed_s=elapsed,
+                eta=departure + timedelta(seconds=elapsed),
             )
         )
     return checkpoints

@@ -50,8 +50,10 @@ export function makeRoute(id: string, levels: RiskLevel[], overrides: Partial<Ro
     rank: 1,
     distanceMi: total,
     durationS: 3 * 3600,
+    tripDurationS: 3 * 3600,
     departure: '2026-01-15T12:00:00Z',
     arrival: '2026-01-15T15:00:00Z',
+    stops: [],
     geometry: [
       [-97, 32],
       [-96, 32],
@@ -104,6 +106,7 @@ export function makePlan(): PlanResponse {
       weightLb: 36000,
       departure: '2026-01-15T12:00:00Z',
       bbox: [-97, 32, -96, 32],
+      restPlan: null,
       hourlyAnchor: '2026-01-15T10:00:00Z',
       hourlyHours: 48,
     },

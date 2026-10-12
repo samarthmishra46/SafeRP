@@ -123,6 +123,17 @@ def interpolate_at_distance(profile: RouteProfile, distance_m: float) -> PointOn
     )
 
 
+def interpolate_at_elapsed(profile: RouteProfile, elapsed_s: float) -> PointOnRoute:
+    """Position after `elapsed_s` seconds of driving (clamped to the ends)."""
+    cum_t = profile.cum_duration_s
+    t = min(max(elapsed_s, 0.0), cum_t[-1])
+    i = min(bisect_right(cum_t, t) - 1, len(cum_t) - 2)
+    span = cum_t[i + 1] - cum_t[i]
+    f = 0.0 if span <= 0 else (t - cum_t[i]) / span
+    d0, d1 = profile.cum_distance_m[i], profile.cum_distance_m[i + 1]
+    return interpolate_at_distance(profile, d0 + (d1 - d0) * f)
+
+
 def simplify_indices(coords: Sequence[LonLat], tolerance_m: float) -> list[int]:
     """Douglas–Peucker simplification; returns the indices of the vertices to keep."""
     n = len(coords)

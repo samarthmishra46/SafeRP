@@ -26,6 +26,7 @@ export function TripSummary({ plan, onEdit }: { plan: PlanResponse; onEdit: () =
         <Typography variant="caption" component="p">
           {formatDateTime(plan.meta.departure)} · {formatWeight(plan.meta.weightLb)} ·{' '}
           {plan.meta.intervalMi}-mi checkpoints
+          {plan.meta.restPlan && ' · rest stops planned'}
         </Typography>
       </Box>
       <Button size="small" startIcon={<EditOutlined fontSize="small" />} onClick={onEdit}>

@@ -2,6 +2,7 @@ import { Box, Paper, Stack, Typography, useTheme } from '@mui/material';
 import type { HazardType } from '../lib/hazards';
 import { useUi } from '../state/uiStore';
 import { RISK_CODE, RISK_LABEL, RISK_LEVELS, riskColor, riskOnColor } from '../theme/risk';
+import { STOP_ICON, STOP_LABEL } from '../theme/stopIcons';
 import { WeatherGlyph } from './WeatherGlyph';
 
 const WEATHER: { type: HazardType; label: string }[] = [
@@ -10,7 +11,13 @@ const WEATHER: { type: HazardType; label: string }[] = [
   { type: 'wind', label: 'Wind (points downwind)' },
 ];
 
-export function Legend({ compact = false }: { compact?: boolean }) {
+export function Legend({
+  compact = false,
+  showStops = false,
+}: {
+  compact?: boolean;
+  showStops?: boolean;
+}) {
   const theme = useTheme();
   const mode = theme.palette.mode;
   const animationsEnabled = useUi((s) => s.animationsEnabled);
@@ -72,6 +79,42 @@ export function Legend({ compact = false }: { compact?: boolean }) {
         <Typography variant="caption" component="p" sx={{ mt: 0.75, maxWidth: 150 }}>
           Dashed white line marks No Travel stretches.
         </Typography>
+      )}
+      {showStops && (
+        <Box component="section" aria-label="Rest stop legend" sx={{ mt: compact ? 0.5 : 1 }}>
+          {!compact && (
+            <Typography
+              variant="overline"
+              color="text.secondary"
+              component="h2"
+              sx={{ display: 'block', mb: 0.5 }}
+            >
+              Rest stops
+            </Typography>
+          )}
+          <Stack
+            component="ul"
+            direction={compact ? 'row' : 'column'}
+            sx={{ listStyle: 'none', m: 0, p: 0, gap: compact ? 1.25 : 0.5 }}
+          >
+            {(['break', 'overnight'] as const).map((kind) => {
+              const Icon = STOP_ICON[kind];
+              return (
+                <Stack
+                  component="li"
+                  key={kind}
+                  direction="row"
+                  sx={{ alignItems: 'center', gap: 0.75 }}
+                >
+                  <Icon sx={{ fontSize: 16, color: 'text.primary' }} aria-hidden />
+                  <Typography variant="caption" sx={{ color: 'text.primary' }}>
+                    {STOP_LABEL[kind]}
+                  </Typography>
+                </Stack>
+              );
+            })}
+          </Stack>
+        </Box>
       )}
       {animationsEnabled && (
         <Box

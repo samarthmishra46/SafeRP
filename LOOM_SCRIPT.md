@@ -59,6 +59,17 @@ Have open beforehand: the deployed app (or `npm run dev` + `runserver`), `backen
   at 24 fps and handed to the GPU. The loop sleeps when the tab is hidden or nothing is animating,
   and the Network tab stays empty while scrubbing.
 
+## (+45 s) · Optional rest stops
+
+- Edit the trip, tick **Plan rest stops**, and click the **US** preset: 30 min after 8 h, 10 h after
+  11 h. Then show that every part is optional: switch the overnight rest off and on, and change
+  the break to every 4 h. The presets just fill in values; nothing is enforced.
+- Re-plan Dallas → Chicago. The cards now show "With stops 25 h 9 min", "1 break · 1 overnight
+  rest", and the later arrival. Point out the ☕ and 🌙 markers on the map.
+- Press **Departure** and play. The truck parks at the break and then overnight (its icon
+  changes), and the hazard strip is hatched for the rest hours. Since stops shift the ETAs, the
+  checkpoint forecasts, and therefore the risk, are those of the real arrival times.
+
 ## 5:45 – 7:00 · The logic (code)
 
 - `risk.py`: half-open thresholds, the >=55 vs >1.00 / >3.0 asymmetry, load rules, and

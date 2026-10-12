@@ -9,7 +9,8 @@ Weather-aware truck route planner: Django REST API (`backend/`) + React/Vite/MUI
 - `backend/core/domain/` — pure logic, no I/O or Django imports:
   `risk.py` (risk thresholds and load rules), `weather.py` (hour-bucket sampling),
   `checkpoints.py`, `geo.py`, `ranking.py`, `evaluate.py`, `routes.py`, `grid.py`,
-  `hazards.py` (hourly hazard levels for the slider animations; never used for risk)
+  `hazards.py` (hourly hazard levels for the slider animations; never used for risk),
+  `rest.py` (optional driver-chosen rest stops that shift ETAs)
 - `backend/core/services/` — Mapbox/Open-Meteo clients, cache, planner and heatmap orchestration
 - `backend/core/api/` — serializers, presenters (camelCase JSON), views, error handler
 - `backend/tests/` — pytest; `fixtures/` holds recorded upstream responses (`scripts/record_fixtures.py`)

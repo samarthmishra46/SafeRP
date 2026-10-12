@@ -26,3 +26,17 @@ describe('TripForm', () => {
     expect(useTrip.getState().interval).toBe(10);
   });
 });
+
+describe('TripForm rest stops', () => {
+  it('reveals optional rest settings when ticked', async () => {
+    useTrip.setState({ rest: { ...useTrip.getState().rest, enabled: false } });
+    renderWithProviders(<TripForm onSubmit={() => {}} pending={false} />);
+    expect(screen.queryByRole('group', { name: 'Rest stop settings' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('checkbox', { name: /Plan rest stops/ }));
+    expect(screen.getByRole('group', { name: 'Rest stop settings' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('switch', { name: /Overnight rest/ }));
+    expect(useTrip.getState().rest.overnightOn).toBe(false);
+    await userEvent.click(screen.getByRole('button', { name: 'US' }));
+    expect(useTrip.getState().rest).toMatchObject({ breakEveryH: '8', overnightOn: true });
+  });
+});

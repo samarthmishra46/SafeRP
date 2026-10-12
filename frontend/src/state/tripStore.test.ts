@@ -1,6 +1,13 @@
 import dayjs from 'dayjs';
 import type { Place } from '../api/types';
-import { parseWeight, validateTrip } from './tripStore';
+import {
+  REST_PRESETS,
+  parseWeight,
+  toRestPlan,
+  useTrip,
+  validateRest,
+  validateTrip,
+} from './tripStore';
 
 const dallas: Place = {
   id: '1',
@@ -63,4 +70,51 @@ test('parseWeight strips separators', () => {
   expect(parseWeight('36,000')).toBe(36000);
   expect(parseWeight(' 40 000 ')).toBe(40000);
   expect(parseWeight('4e4')).toBeNull();
+});
+
+describe('rest settings', () => {
+  const base = {
+    enabled: true,
+    breaksOn: true,
+    breakEveryH: '8',
+    breakMin: '30',
+    overnightOn: true,
+    overnightAfterH: '11',
+    overnightH: '10',
+  };
+
+  it('builds an optional rest plan with only the parts switched on', () => {
+    expect(toRestPlan({ ...base, enabled: false })).toBeNull();
+    expect(toRestPlan({ ...base, breaksOn: false, overnightOn: false })).toBeNull();
+    expect(toRestPlan(base)).toEqual({
+      breaks: { everyH: 8, minutes: 30 },
+      overnight: { afterDrivingH: 11, hours: 10 },
+    });
+    expect(toRestPlan({ ...base, breaksOn: false, breakEveryH: 'x' })).toEqual({
+      breaks: null,
+      overnight: { afterDrivingH: 11, hours: 10 },
+    });
+  });
+
+  it('only range-checks parts that are switched on, and enforces no legal rule', () => {
+    expect(validateRest({ ...base, breakEveryH: '2.5', breakMin: '10' })).toEqual({});
+    expect(validateRest({ ...base, breakEveryH: '0.1' }).breakEveryH).toBeDefined();
+    expect(validateRest({ ...base, overnightH: 'abc' }).overnightH).toBeDefined();
+    expect(validateRest({ ...base, overnightOn: false, overnightH: 'abc' })).toEqual({});
+    expect(validateRest({ ...base, enabled: false, breakMin: '0' })).toEqual({});
+  });
+
+  it('presets fill values and switch parts on or off', () => {
+    const eu = REST_PRESETS.find((p) => p.id === 'eu')!;
+    useTrip.getState().applyRestPreset(eu);
+    expect(useTrip.getState().rest).toMatchObject({
+      breaksOn: true,
+      breakEveryH: '4.5',
+      breakMin: '45',
+      overnightAfterH: '9',
+      overnightH: '11',
+    });
+    useTrip.getState().applyRestPreset(REST_PRESETS.find((p) => p.id === 'ca')!);
+    expect(useTrip.getState().rest.breaksOn).toBe(false);
+  });
 });

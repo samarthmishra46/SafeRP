@@ -321,3 +321,48 @@ def test_heatmap_includes_levels_and_wind_direction(upstreams):
     assert len(data["windDir"]) == 49
     assert all(len(row) == n for row in data["windDir"])
     assert all(d is None or (0 <= d < 360 and d % 10 == 0) for d in data["windDir"][0])
+
+
+# --- optional rest stops ----------------------------------------------------------------
+
+
+def test_plan_with_rest_plan_inserts_stops_and_shifts_etas(upstreams, settings):
+    settings.TRUCK_SPEED_FACTOR = 0.25  # ~2.5 h of driving on the short fixture route
+    rest = {
+        "breaks": {"everyH": 0.5, "minutes": 30},
+        "overnight": {"afterDrivingH": 1.5, "hours": 8},
+    }
+    data = plan(restPlan=rest).json()
+    assert data["meta"]["restPlan"] == rest
+    for route in data["routes"]:
+        stops = route["stops"]
+        assert [s["kind"] for s in stops][:3] == ["break", "break", "overnight"]
+        assert route["tripDurationS"] == pytest.approx(
+            route["durationS"] + sum(s["durationS"] for s in stops), abs=2
+        )
+        first = stops[0]
+        assert first["driveElapsedS"] == 1800 and first["clockStartS"] == 1800
+        assert 0 < first["distanceMi"] < route["distanceMi"]
+        # Checkpoints after the first break are reached 30 minutes later than without stops.
+        etas = [c["elapsedS"] for c in route["checkpoints"]]
+        assert etas == sorted(etas)
+        assert route["checkpoints"][-1]["elapsedS"] == pytest.approx(route["tripDurationS"], abs=2)
+
+
+def test_rest_plan_parts_are_optional(upstreams):
+    data = plan(restPlan={"breaks": None, "overnight": None}).json()
+    assert data["meta"]["restPlan"] is None
+    assert all(r["stops"] == [] and r["tripDurationS"] == r["durationS"] for r in data["routes"])
+    assert plan(restPlan=None).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "rest",
+    [
+        {"breaks": {"everyH": 0.1, "minutes": 30}},
+        {"breaks": {"everyH": 4, "minutes": 1}},
+        {"overnight": {"afterDrivingH": 11, "hours": 100}},
+    ],
+)
+def test_rest_plan_validation(rest):
+    assert_error(plan(restPlan=rest), 400, "invalid_request")

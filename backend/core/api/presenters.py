@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from core.domain.geo import meters_to_miles, slice_polyline
+from core.domain.geo import interpolate_at_elapsed, meters_to_miles, slice_polyline
 from core.domain.hazards import HazardRow
 from core.domain.ranking import rank_key
 from core.domain.risk import RiskLevel
@@ -43,6 +43,26 @@ def _hourly(rows: list[HazardRow]) -> dict:
         "snow": [r.snow for r in rows],
         "windDir": [r.wind_dir for r in rows],
     }
+
+
+def _stops(route: PlannedRoute, departure: datetime) -> list[dict]:
+    out = []
+    for s in route.stops:
+        p = interpolate_at_elapsed(route.profile, s.drive_elapsed_s)
+        out.append(
+            {
+                "kind": s.kind,
+                "lon": round(p.lon, 5),
+                "lat": round(p.lat, 5),
+                "distanceMi": _mi(p.distance_m, 1),
+                "start": iso(departure + timedelta(seconds=s.clock_start_s)),
+                "end": iso(departure + timedelta(seconds=s.clock_end_s)),
+                "durationS": round(s.duration_s),
+                "driveElapsedS": round(s.drive_elapsed_s),
+                "clockStartS": round(s.clock_start_s),
+            }
+        )
+    return out
 
 
 def _route(route: PlannedRoute, ev, departure: datetime, rank_position: int) -> dict:
@@ -101,9 +121,11 @@ def _route(route: PlannedRoute, ev, departure: datetime, rank_position: int) -> 
         "source": route.source,
         "rank": rank_position + 1,
         "distanceMi": _mi(prof.distance_m, 1),
-        "durationS": round(prof.duration_s),
+        "durationS": round(prof.duration_s),  # driving time
+        "tripDurationS": round(route.trip_duration_s),  # driving + rest stops
         "departure": iso(departure),
-        "arrival": iso(departure + timedelta(seconds=prof.duration_s)),
+        "arrival": iso(departure + timedelta(seconds=route.trip_duration_s)),
+        "stops": _stops(route, departure),
         "geometry": [_pt(p) for p in line],
         "cumDurationS": [round(prof.cum_duration_s[i]) for i in idx],
         "segments": segments,
@@ -120,6 +142,23 @@ def _bbox(routes: list[PlannedRoute]) -> list[float]:
     lons = [c[0] for r in routes for c in r.profile.coords]
     lats = [c[1] for r in routes for c in r.profile.coords]
     return [round(min(lons), 4), round(min(lats), 4), round(max(lons), 4), round(max(lats), 4)]
+
+
+def _rest_plan(plan) -> dict | None:
+    if plan is None:
+        return None
+    return {
+        "breaks": (
+            {"everyH": plan.break_every_s / 3600, "minutes": round(plan.break_s / 60)}
+            if plan.break_every_s
+            else None
+        ),
+        "overnight": (
+            {"afterDrivingH": plan.max_daily_drive_s / 3600, "hours": plan.overnight_s / 3600}
+            if plan.max_daily_drive_s
+            else None
+        ),
+    }
 
 
 def present_plan(result: PlanResult) -> dict:
@@ -168,6 +207,7 @@ def present_plan(result: PlanResult) -> dict:
             "weightLb": req.weight_lb,
             "departure": iso(req.departure),
             "bbox": _bbox(result.routes),
+            "restPlan": _rest_plan(req.rest_plan),
             "hourlyAnchor": iso(result.hourly_anchor),
             "hourlyHours": len(result.hourly[0]) - 1 if result.hourly else 0,
         },

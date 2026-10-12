@@ -5,7 +5,12 @@ from rest_framework.views import APIView
 from core.services import geocoding, heatmap, planner
 
 from .presenters import present_plan
-from .serializers import GeocodeQuerySerializer, HeatmapQuerySerializer, PlanRequestSerializer
+from .serializers import (
+    GeocodeQuerySerializer,
+    HeatmapQuerySerializer,
+    PlanRequestSerializer,
+    RestPlanSerializer,
+)
 
 
 class HealthView(APIView):
@@ -46,6 +51,11 @@ class PlanView(APIView):
             departure=data["departure"],
             weight_lb=data["weightLb"],
             interval_mi=int(data["intervalMi"]),
+            rest_plan=(
+                RestPlanSerializer().to_rest_plan(data["restPlan"])
+                if data.get("restPlan")
+                else None
+            ),
         )
         return Response(present_plan(planner.plan_trip(req)))
 

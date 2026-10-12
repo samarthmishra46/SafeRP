@@ -27,5 +27,8 @@ services:
         generateValue: true
       - key: DJANGO_DEBUG
         value: "false"
+      # Without this, every new connection to Mapbox stalls ~15 s on IPv6 DNS lookups.
+      - key: HTTP_FORCE_IPV4
+        value: "true"
       - key: REDIS_URL # optional, e.g. an Upstash rediss:// URL; leave blank to use memory
         sync: false

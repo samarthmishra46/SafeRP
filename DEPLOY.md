@@ -29,7 +29,12 @@ public `pk.` token is fine), and free accounts on Render, Vercel and cron-job.or
      `http://localhost:5173` for now; you'll change it in step 4.
    - `REDIS_URL`: leave empty. It's optional (see "Optional: Redis" below).
 
-   `DJANGO_SECRET_KEY` is generated for you, and `DJANGO_DEBUG` is set to `false`.
+   `DJANGO_SECRET_KEY` is generated for you, `DJANGO_DEBUG` is set to `false`, and
+   `HTTP_FORCE_IPV4` is set to `true`. Without it, each call to Mapbox stalls about 15 s on
+   Render's IPv6 DNS lookups.
+
+   Paste **only the token itself** (`pk.eyJ…`): not `MAPBOX_ACCESS_TOKEN=`, and no quotes. The
+   backend now strips those, but it's best to enter the bare value.
 4. Click **Apply** / **Deploy Blueprint**. The first build takes a few minutes.
 5. When it shows **Live**, copy the service URL, e.g. `https://saferp-api.onrender.com`.
 6. Open `https://saferp-api.onrender.com/api/health`. You should see
@@ -157,7 +162,14 @@ Frontend: `VITE_API_BASE_URL`.
 - **The site calls `localhost` or the wrong API.** `VITE_API_BASE_URL` was missing when Vercel
   built the site. Set it, then redeploy the frontend.
 - **`/api/health` shows `"mapboxConfigured": false`.** `MAPBOX_ACCESS_TOKEN` is missing in Render →
-  Environment.
+  Environment, or isn't a Mapbox token. It must start with `pk.` or `sk.`.
+- **"Mapbox Geocoding is unavailable right now: the Mapbox access token was rejected".** Mapbox
+  refused the token stored on Render (HTTP 401): it was mistyped, is incomplete, or was deleted in
+  your Mapbox account. In Render → saferp-api → **Environment**, edit `MAPBOX_ACCESS_TOKEN`, paste
+  the exact `pk.…` value that works locally (from `backend/.env`, the part after `=`), and save.
+  Render redeploys; then try `https://<render-url>/api/geocode?q=dallas`.
+- **Every search or plan takes 15+ seconds on Render.** Add `HTTP_FORCE_IPV4` = `true` in Render →
+  Environment. It's in `render.yaml`, but a service created by hand needs it added manually.
 - **400 "Bad Request" from the API on a custom domain.** Add that domain to
   `DJANGO_ALLOWED_HOSTS`. Render's own `*.onrender.com` hostname is allowed automatically.
 - **Plans are slower than locally.** The free instance has a small CPU share, so a long trip's

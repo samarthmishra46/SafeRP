@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -20,7 +22,11 @@ class HealthView(APIView):
         return Response(
             {
                 "status": "ok",
-                "mapboxConfigured": bool(settings.MAPBOX_ACCESS_TOKEN),
+                # True only when the value looks like a Mapbox token (pk./sk./tk.); a token can
+                # still be rejected by Mapbox if it is revoked or belongs to another account.
+                "mapboxConfigured": bool(
+                    re.fullmatch(r"(pk|sk|tk)\.[A-Za-z0-9_.-]+", settings.MAPBOX_ACCESS_TOKEN)
+                ),
                 "windMetric": settings.WIND_METRIC,
             }
         )

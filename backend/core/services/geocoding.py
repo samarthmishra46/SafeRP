@@ -68,7 +68,10 @@ def search(
 
     status, body = get_json(SERVICE, f"{settings.MAPBOX_API_URL}/search/geocode/v6/forward", params)
     if status == 401:
-        raise UpstreamError(SERVICE, "the Mapbox access token was rejected")
+        raise UpstreamError(
+            SERVICE,
+            "the Mapbox access token was rejected (check MAPBOX_ACCESS_TOKEN on the server)",
+        )
     if status == 429:
         raise UpstreamError(SERVICE, "rate limit reached, please retry shortly")
     if status != 200 or not isinstance(body, dict):

@@ -81,7 +81,10 @@ def _directions(
     )
     code = body.get("code") if isinstance(body, dict) else None
     if status == 401:
-        raise UpstreamError(SERVICE, "the Mapbox access token was rejected")
+        raise UpstreamError(
+            SERVICE,
+            "the Mapbox access token was rejected (check MAPBOX_ACCESS_TOKEN on the server)",
+        )
     if status == 429:
         raise UpstreamError(SERVICE, "rate limit reached, please retry shortly")
     if code in ("NoRoute", "NoSegment"):

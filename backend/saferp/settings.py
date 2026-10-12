@@ -125,8 +125,17 @@ LOGGING = {
     "root": {"handlers": ["console"], "level": os.environ.get("LOG_LEVEL", "INFO")},
 }
 
+
 # --- SafeRP domain configuration -----------------------------------------------
-MAPBOX_ACCESS_TOKEN = os.environ.get("MAPBOX_ACCESS_TOKEN", "")
+def clean_token(raw: str, name: str = "MAPBOX_ACCESS_TOKEN") -> str:
+    """Forgive common dashboard paste mistakes: spaces, quotes, or the whole `NAME=value` line."""
+    token = raw.strip().strip("\"'").strip()
+    if token.startswith(f"{name}="):
+        token = token[len(name) + 1 :].strip().strip("\"'").strip()
+    return token
+
+
+MAPBOX_ACCESS_TOKEN = clean_token(os.environ.get("MAPBOX_ACCESS_TOKEN", ""))
 OPEN_METEO_URL = os.environ.get("OPEN_METEO_URL", "https://api.open-meteo.com/v1/forecast")
 MAPBOX_API_URL = os.environ.get("MAPBOX_API_URL", "https://api.mapbox.com")
 

@@ -109,3 +109,14 @@ def test_fmt_miles():
     assert fmt_miles(18.0) == "18"
     assert fmt_miles(18.04) == "18"
     assert fmt_miles(4.46) == "4.5"
+
+
+def test_explain_in_kilometres_converts_values_but_not_the_ranking():
+    names = ["Route A", "Route B"]
+    a = summary(sev=18, low=82, minutes=100)
+    b = summary(minutes=114)
+    order = rank([a, b])
+    assert order == [1, 0]
+    assert explain(names, [a, b], order, "km") == (
+        "Route B has 0 Severe km vs 29 on Route A, and is 14 minutes longer."
+    )

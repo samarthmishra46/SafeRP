@@ -19,15 +19,18 @@ import {
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import dayjs from 'dayjs';
 import { useState, type FormEvent } from 'react';
+import { formatInterval } from '../lib/format';
+import { WEIGHT_PRESETS, WEIGHT_RANGE } from '../lib/units';
 import {
   DEPARTURE_SLACK_MIN,
   FORECAST_DAYS,
-  WEIGHT_PRESETS,
   parseWeight,
+  unitsFor,
   useTrip,
   validateTrip,
   type Interval,
 } from '../state/tripStore';
+import { CountrySelect } from './CountrySelect';
 import { PlaceAutocomplete } from './PlaceAutocomplete';
 import { RestStopFields } from './RestStopFields';
 
@@ -45,6 +48,8 @@ export function TripForm({ onSubmit, pending }: Props) {
   // Show errors only after the first submit attempt, then live.
   const shown = submitted ? errors : {};
   const weightValue = parseWeight(trip.weight);
+  const units = unitsFor(trip.country);
+  const [minWeight, maxWeight] = WEIGHT_RANGE[units.weight];
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -55,6 +60,7 @@ export function TripForm({ onSubmit, pending }: Props) {
   return (
     <Box component="form" noValidate onSubmit={handleSubmit} aria-label="Trip details">
       <Stack spacing={2}>
+        <CountrySelect />
         <Box
           sx={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 1, alignItems: 'center' }}
         >
@@ -117,10 +123,15 @@ export function TripForm({ onSubmit, pending }: Props) {
             onChange={(e) => trip.setWeight(e.target.value)}
             onBlur={() => weightValue !== null && trip.setWeight(String(weightValue))}
             error={Boolean(shown.weight)}
-            helperText={shown.weight ?? '1,000 – 80,000 lb'}
+            helperText={
+              shown.weight ??
+              `${intFmt.format(minWeight)} – ${intFmt.format(maxWeight)} ${units.weight}`
+            }
             slotProps={{
               htmlInput: { inputMode: 'numeric', 'aria-describedby': 'weight-presets' },
-              input: { endAdornment: <InputAdornment position="end">lb</InputAdornment> },
+              input: {
+                endAdornment: <InputAdornment position="end">{units.weight}</InputAdornment>,
+              },
             }}
           />
           <Stack
@@ -131,13 +142,13 @@ export function TripForm({ onSubmit, pending }: Props) {
             role="group"
             aria-label="Weight presets"
           >
-            {WEIGHT_PRESETS.map((p) => (
+            {WEIGHT_PRESETS[units.weight].map((p) => (
               <Chip
                 key={p.value}
                 size="small"
                 variant={weightValue === p.value ? 'filled' : 'outlined'}
                 color={weightValue === p.value ? 'primary' : 'default'}
-                label={`${p.label} · ${intFmt.format(p.value / 1000)}k`}
+                label={`${p.label} · ${p.short}`}
                 onClick={() => trip.setWeight(String(p.value))}
                 aria-pressed={weightValue === p.value}
               />
@@ -158,8 +169,12 @@ export function TripForm({ onSubmit, pending }: Props) {
             onChange={(_, v: Interval | null) => v && trip.setInterval(v)}
           >
             {[10, 25, 50].map((v) => (
-              <ToggleButton key={v} value={v} aria-label={`${v} miles`}>
-                {v} mi
+              <ToggleButton
+                key={v}
+                value={v}
+                aria-label={formatInterval(v, units).replace(/mi$/, 'miles')}
+              >
+                {formatInterval(v, units)}
               </ToggleButton>
             ))}
           </ToggleButtonGroup>

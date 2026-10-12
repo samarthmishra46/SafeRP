@@ -1,7 +1,9 @@
 import { Box, Typography, useTheme } from '@mui/material';
 import { memo, useCallback, useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import type { Route } from '../api/types';
-import { formatMilesValue, formatTime, joinFactors } from '../lib/format';
+import { formatDistance, formatMilepost, formatTime, joinFactors } from '../lib/format';
+import type { Units } from '../lib/units';
+import { useUnits } from '../state/tripStore';
 import { useUi } from '../state/uiStore';
 import { RISK_LABEL, riskColor } from '../theme/risk';
 
@@ -10,11 +12,12 @@ interface Props {
   height?: number;
 }
 
-function describe(route: Route, index: number): string {
+function describe(route: Route, index: number, units: Units): string {
   const c = route.checkpoints[index];
   if (!c) return '';
   const why = c.drivers.length ? ` (${joinFactors(c.drivers).toLowerCase()})` : '';
-  return `Mile ${formatMilesValue(c.distanceMi)}, ETA ${formatTime(c.eta)}: ${RISK_LABEL[c.level]}${why}`;
+  const at = formatMilepost(c.distanceMi, units);
+  return `${at[0].toUpperCase()}${at.slice(1)}, ETA ${formatTime(c.eta)}: ${RISK_LABEL[c.level]}${why}`;
 }
 
 /**
@@ -24,6 +27,7 @@ function describe(route: Route, index: number): string {
 export const RiskStrip = memo(function RiskStrip({ route, height = 12 }: Props) {
   const theme = useTheme();
   const mode = theme.palette.mode;
+  const units = useUnits();
   const ref = useRef<HTMLDivElement>(null);
   const activeIndex = useUi((s) => {
     const focus = s.hovered ?? s.pinned;
@@ -158,11 +162,11 @@ export const RiskStrip = memo(function RiskStrip({ route, height = 12 }: Props) 
         }}
       >
         {active ? (
-          <span>{describe(route, activeIndex)}</span>
+          <span>{describe(route, activeIndex, units)}</span>
         ) : (
           <>
             <span>Origin</span>
-            <span>{formatMilesValue(route.distanceMi)} mi</span>
+            <span>{formatDistance(route.distanceMi, units)}</span>
           </>
         )}
       </Typography>

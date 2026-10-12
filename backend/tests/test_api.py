@@ -366,3 +366,42 @@ def test_rest_plan_parts_are_optional(upstreams):
 )
 def test_rest_plan_validation(rest):
     assert_error(plan(restPlan=rest), 400, "invalid_request")
+
+
+# --- countries and units ----------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("params", "expected"),
+    [
+        ({}, "country=us"),  # server default
+        ({"country": "de"}, "country=de"),
+        ({"country": "CA,US"}, "country=ca%2Cus"),
+    ],
+)
+def test_geocode_country_filter(upstreams, params, expected):
+    assert client.get("/api/geocode", {"q": "berlin", **params}).status_code == 200
+    assert expected in upstreams.calls_to(GEOCODE_URL)[-1].request.url
+
+
+def test_geocode_blank_country_searches_worldwide(upstreams):
+    assert client.get("/api/geocode", {"q": "berlin", "country": ""}).status_code == 200
+    assert "country=" not in upstreams.calls_to(GEOCODE_URL)[-1].request.url
+
+
+def test_geocode_bad_country_code():
+    assert_error(client.get("/api/geocode", {"q": "berlin", "country": "germany"}), 400)
+
+
+def test_plan_reason_in_kilometres(upstreams):
+    def gusty(i, field, value):
+        return 47.0 if field == "wind_gusts_10m" else value
+
+    upstreams.weather_override = gusty
+    data = plan(distanceUnit="km").json()
+    assert data["routes"][0]["distanceMi"] > 0  # numbers stay in miles
+    assert (
+        " km" in data["recommendation"]["reason"]
+        or "only route" in data["recommendation"]["reason"]
+    )
+    assert_error(plan(distanceUnit="furlong"), 400, "invalid_request")

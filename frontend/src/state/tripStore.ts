@@ -1,17 +1,43 @@
 import dayjs, { type Dayjs } from 'dayjs';
 import { create } from 'zustand';
 import type { Place, PlanRequest, RestPlan } from '../api/types';
+import {
+  UNITS,
+  WEIGHT_RANGE,
+  unitSystemFor,
+  weightFromLb,
+  weightToLb,
+  type Units,
+} from '../lib/units';
 
 export type Interval = 10 | 25 | 50;
 
-export const MIN_WEIGHT = 1_000;
-export const MAX_WEIGHT = 80_000;
-export const WEIGHT_PRESETS = [
-  { label: 'Light', value: 15_000 },
-  { label: 'Medium', value: 35_000 },
-  { label: 'Heavy', value: 45_000 },
-  { label: 'Max', value: 80_000 },
-];
+const COUNTRY_KEY = 'saferp:country';
+
+function readCountry(): string {
+  try {
+    return localStorage.getItem(COUNTRY_KEY) ?? 'US';
+  } catch {
+    return 'US';
+  }
+}
+
+function storeCountry(country: string) {
+  try {
+    localStorage.setItem(COUNTRY_KEY, country);
+  } catch {
+    /* storage unavailable: the choice lasts for this session only */
+  }
+}
+
+export function unitsFor(country: string): Units {
+  return UNITS[unitSystemFor(country)];
+}
+
+/** Display units for the selected country. */
+export function useUnits(): Units {
+  return useTrip((s) => unitsFor(s.country));
+}
 export const DEPARTURE_SLACK_MIN = 10;
 export const FORECAST_DAYS = 7;
 
@@ -64,12 +90,16 @@ export function nextFullHour(): Dayjs {
 }
 
 interface TripState {
+  /** ISO 3166 alpha-2 code filtering place search ('' = worldwide); also picks the units. */
+  country: string;
   origin: Place | null;
   destination: Place | null;
   departure: Dayjs | null;
+  /** Load weight as typed, in the selected country's weight unit (lb or kg). */
   weight: string;
   interval: Interval;
   rest: RestSettings;
+  setCountry: (country: string) => void;
   setOrigin: (p: Place | null) => void;
   setDestination: (p: Place | null) => void;
   swap: () => void;
@@ -80,13 +110,29 @@ interface TripState {
   applyRestPreset: (preset: RestPreset) => void;
 }
 
+const initialCountry = readCountry();
+
 export const useTrip = create<TripState>((set) => ({
+  country: initialCountry,
   origin: null,
   destination: null,
   departure: nextFullHour(),
-  weight: '36000',
+  weight: String(Math.round(weightFromLb(36_000, unitsFor(initialCountry)))),
   interval: 25,
   rest: DEFAULT_REST,
+  setCountry: (country) =>
+    set((s) => {
+      storeCountry(country);
+      // Keep the same load when the weight unit changes (e.g. 36,000 lb -> 16,329 kg).
+      const from = unitsFor(s.country);
+      const to = unitsFor(country);
+      const value = parseWeight(s.weight);
+      const weight =
+        value === null || from.weight === to.weight
+          ? s.weight
+          : String(Math.round(weightFromLb(weightToLb(value, from), to)));
+      return { country, weight };
+    }),
   setOrigin: (origin) => set({ origin }),
   setDestination: (destination) => set({ destination }),
   swap: () => set((s) => ({ origin: s.destination, destination: s.origin })),
@@ -164,6 +210,7 @@ export function parseWeight(raw: string): number | null {
 export function validateTrip(
   s: Pick<TripState, 'origin' | 'destination' | 'departure' | 'weight'> & {
     rest?: RestSettings;
+    country?: string;
   },
   now: Dayjs = dayjs(),
 ): TripErrors {
@@ -185,10 +232,14 @@ export function validateTrip(
   } else if (s.departure.isAfter(now.add(FORECAST_DAYS, 'day'))) {
     errors.departure = `Departure must be within the ${FORECAST_DAYS}-day forecast.`;
   }
+  const units = unitsFor(s.country ?? 'US');
+  const [min, max] = WEIGHT_RANGE[units.weight];
   const weight = parseWeight(s.weight);
-  if (weight === null) errors.weight = 'Enter the load in pounds.';
-  else if (weight < MIN_WEIGHT || weight > MAX_WEIGHT)
-    errors.weight = 'Load must be between 1,000 and 80,000 lb.';
+  const fmt = new Intl.NumberFormat('en-US');
+  if (weight === null)
+    errors.weight = `Enter the load in ${units.weight === 'lb' ? 'pounds' : 'kilograms'}.`;
+  else if (weight < min || weight > max)
+    errors.weight = `Load must be between ${fmt.format(min)} and ${fmt.format(max)} ${units.weight}.`;
   return errors;
 }
 
@@ -197,8 +248,9 @@ export function toPlanRequest(s: TripState): PlanRequest {
     origin: { lon: s.origin!.lon, lat: s.origin!.lat, label: s.origin!.label },
     destination: { lon: s.destination!.lon, lat: s.destination!.lat, label: s.destination!.label },
     departure: s.departure!.toDate().toISOString(),
-    weightLb: parseWeight(s.weight)!,
+    weightLb: Math.round(weightToLb(parseWeight(s.weight)!, unitsFor(s.country))),
     intervalMi: s.interval,
     restPlan: toRestPlan(s.rest),
+    distanceUnit: unitsFor(s.country).distance,
   };
 }

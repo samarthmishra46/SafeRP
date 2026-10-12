@@ -42,6 +42,7 @@ class PlanRequest:
     weight_lb: int
     interval_mi: int
     rest_plan: RestPlan | None = None
+    distance_unit: str = "mi"  # wording of the recommendation only
 
 
 @dataclass(frozen=True)
@@ -125,7 +126,7 @@ def plan_trip(req: PlanRequest, now: datetime | None = None) -> PlanResult:
     keys = {weather_key(c.lon, c.lat) for r in routes for c in r.checkpoints}
     if len(keys) > settings.MAX_WEATHER_POINTS:
         raise PlanningError(
-            f"This trip needs {len(keys)} forecast points at a {req.interval_mi}-mile interval, "
+            f"This trip needs {len(keys)} forecast points at this checkpoint interval, "
             f"more than the {settings.MAX_WEATHER_POINTS} allowed per plan. "
             "Choose a wider checkpoint interval.",
             code="too_many_checkpoints",
@@ -142,6 +143,7 @@ def plan_trip(req: PlanRequest, now: datetime | None = None) -> PlanResult:
             req.weight_lb,
             settings.WIND_METRIC,
             req.departure,
+            req.distance_unit,
         )
     except ForecastUnavailable as exc:
         raise PlanningError(

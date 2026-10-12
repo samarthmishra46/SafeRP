@@ -3,6 +3,7 @@ import type { Place } from '../api/types';
 import {
   REST_PRESETS,
   parseWeight,
+  toPlanRequest,
   toRestPlan,
   useTrip,
   validateRest,
@@ -116,5 +117,40 @@ describe('rest settings', () => {
     });
     useTrip.getState().applyRestPreset(REST_PRESETS.find((p) => p.id === 'ca')!);
     expect(useTrip.getState().rest.breaksOn).toBe(false);
+  });
+});
+
+describe('country and units', () => {
+  afterEach(() => useTrip.getState().setCountry('US'));
+
+  it('converts the typed load when the weight unit changes', () => {
+    useTrip.setState({ country: 'US', weight: '36000' });
+    useTrip.getState().setCountry('DE');
+    expect(useTrip.getState().weight).toBe('16329');
+    useTrip.getState().setCountry('FR'); // same unit: unchanged
+    expect(useTrip.getState().weight).toBe('16329');
+    useTrip.getState().setCountry('US');
+    expect(useTrip.getState().weight).toBe('35999');
+  });
+
+  it('validates the load in the country unit', () => {
+    const base = { origin: dallas, destination: houston, departure: now.add(1, 'hour') };
+    expect(validateTrip({ ...base, weight: '40000', country: 'DE' }, now).weight).toMatch(
+      /454 and 36,287 kg/,
+    );
+    expect(validateTrip({ ...base, weight: '16000', country: 'DE' }, now)).toEqual({});
+  });
+
+  it('sends pounds and the distance unit to the API', () => {
+    useTrip.setState({
+      country: 'DE',
+      weight: '16000',
+      origin: dallas,
+      destination: houston,
+      departure: now.add(1, 'hour'),
+    });
+    const req = toPlanRequest(useTrip.getState());
+    expect(req.weightLb).toBe(35274);
+    expect(req.distanceUnit).toBe('km');
   });
 });

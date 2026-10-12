@@ -86,8 +86,22 @@ def fmt_minutes(minutes: int) -> str:
 _KEY_LABELS = {0: "No Travel", 1: "Severe", 2: "High"}
 
 
-def explain(names: Sequence[str], summaries: Sequence[RouteSummary], order: Sequence[int]) -> str:
-    """Why the top-ranked route beat the runner-up, in one or two sentences."""
+KM_PER_MILE = 1.609344
+DISTANCE_WORDS = {"mi": "miles", "km": "km"}
+
+
+def explain(
+    names: Sequence[str],
+    summaries: Sequence[RouteSummary],
+    order: Sequence[int],
+    distance_unit: str = "mi",
+) -> str:
+    """Why the top-ranked route beat the runner-up, in one or two sentences.
+
+    Ranking always compares miles; `distance_unit` ("mi" or "km") only changes the wording.
+    """
+    factor = KM_PER_MILE if distance_unit == "km" else 1.0
+    word = DISTANCE_WORDS.get(distance_unit, "miles")
     best = order[0]
     if len(order) == 1:
         return f"{names[best]} is the only route available."
@@ -105,12 +119,12 @@ def explain(names: Sequence[str], summaries: Sequence[RouteSummary], order: Sequ
         if kb[k] != kr[k]:
             label = _KEY_LABELS[k]
             return (
-                f"{names[best]} has {fmt_miles(kb[k])} {label} miles vs "
-                f"{fmt_miles(kr[k])} on {names[runner]}, and {time_clause}."
+                f"{names[best]} has {fmt_miles(kb[k] * factor)} {label} {word} vs "
+                f"{fmt_miles(kr[k] * factor)} on {names[runner]}, and {time_clause}."
             )
     if kb[3] != kr[3]:
         return (
-            f"{names[best]} and {names[runner]} tie on No Travel, Severe and High miles, but "
+            f"{names[best]} and {names[runner]} tie on No Travel, Severe and High {word}, but "
             f"{names[best]} has lower average risk ({kb[3]:.2f} vs {kr[3]:.2f}) and {time_clause}."
         )
     if minutes != 0:

@@ -14,7 +14,7 @@ Weather-aware truck route planner: Django REST API (`backend/`) + React/Vite/MUI
 - `backend/core/services/` — Mapbox/Open-Meteo clients, cache, planner and heatmap orchestration
 - `backend/core/api/` — serializers, presenters (camelCase JSON), views, error handler
 - `backend/tests/` — pytest; `fixtures/` holds recorded upstream responses (`scripts/record_fixtures.py`)
-- `frontend/src/` — `api/` client + hooks, `components/`, `map/` (lazy MapView, layers, `HourLayers.tsx` slider-driven layers, `weatherAnimation.ts` animated icons), `lib/` (`timeline.ts`, `hazards.ts`), `state/` (zustand), `theme/`
+- `frontend/src/` — `api/` client + hooks, `components/`, `map/` (lazy MapView, layers, `HourLayers.tsx` slider-driven layers, `weatherAnimation.ts` animated icons), `lib/` (`timeline.ts`, `hazards.ts`, `units.ts` display units per country), `state/` (zustand), `theme/`
 - Docs: `README.md`, `DECISIONS.md`, `DEPLOY.md`, `LOOM_SCRIPT.md`
 
 ## Commands

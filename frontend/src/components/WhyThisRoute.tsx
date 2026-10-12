@@ -1,7 +1,9 @@
 import CheckRounded from '@mui/icons-material/CheckRounded';
 import { Box, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import type { Recommendation, Route } from '../api/types';
-import { formatDuration, formatMilesValue } from '../lib/format';
+import { formatDistanceValue, formatDuration } from '../lib/format';
+import type { Units } from '../lib/units';
+import { useUnits } from '../state/tripStore';
 import { MONO } from '../theme/theme';
 
 interface Props {
@@ -10,15 +12,20 @@ interface Props {
 }
 
 const COLUMNS = [
-  { key: 'noTravelMi', label: 'No Travel', format: (v: number) => `${formatMilesValue(v)}` },
-  { key: 'severeMi', label: 'Severe', format: (v: number) => `${formatMilesValue(v)}` },
-  { key: 'highMi', label: 'High', format: (v: number) => `${formatMilesValue(v)}` },
+  {
+    key: 'noTravelMi',
+    label: 'No Travel',
+    format: (v: number, u: Units) => formatDistanceValue(v, u),
+  },
+  { key: 'severeMi', label: 'Severe', format: (v: number, u: Units) => formatDistanceValue(v, u) },
+  { key: 'highMi', label: 'High', format: (v: number, u: Units) => formatDistanceValue(v, u) },
   { key: 'avgRisk', label: 'Avg risk', format: (v: number) => v.toFixed(2) },
   { key: 'durationMin', label: 'Time', format: (v: number) => formatDuration(v * 60) },
 ] as const;
 
 /** The ranking keys in priority order, with the column that decided the winner highlighted. */
 export function WhyThisRoute({ recommendation, routes }: Props) {
+  const units = useUnits();
   const rows = recommendation.ranking;
   const names = Object.fromEntries(routes.map((r) => [r.id, r.name]));
   const decisive =
@@ -30,8 +37,8 @@ export function WhyThisRoute({ recommendation, routes }: Props) {
         Why this route
       </Typography>
       <Typography variant="caption" component="p" sx={{ mb: 1 }}>
-        Routes are ranked left to right: fewest No Travel miles, then Severe, then High, then lowest
-        average risk, then shortest time
+        Routes are ranked left to right: fewest No Travel {units.distanceWord}, then Severe, then
+        High, then lowest average risk, then shortest time
         {routes.some((r) => r.stops.length > 0) ? ' (including rest stops)' : ''}.
       </Typography>
       <Box
@@ -57,7 +64,7 @@ export function WhyThisRoute({ recommendation, routes }: Props) {
                       component="span"
                       sx={{ display: 'block', fontWeight: 400, fontSize: '0.6875rem' }}
                     >
-                      mi
+                      {units.distance}
                     </Box>
                   )}
                 </TableCell>
@@ -100,7 +107,7 @@ export function WhyThisRoute({ recommendation, routes }: Props) {
                         fontWeight: i === decisive ? 700 : 400,
                       }}
                     >
-                      {c.format(row[c.key])}
+                      {c.format(row[c.key], units)}
                     </TableCell>
                   ))}
                 </TableRow>

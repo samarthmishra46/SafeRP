@@ -69,6 +69,8 @@ class PlanRequestSerializer(serializers.Serializer):
         error_messages={"invalid_choice": "Checkpoint interval must be 10, 25 or 50 miles."},
     )
     restPlan = RestPlanSerializer(required=False, allow_null=True, default=None)
+    # Wording of the recommendation sentence; all numbers in the response stay in miles.
+    distanceUnit = serializers.ChoiceField(choices=("mi", "km"), default="mi")
 
     def validate_departure(self, value: datetime) -> datetime:
         now = self.context.get("now") or datetime.now(UTC)
@@ -93,6 +95,13 @@ class PlanRequestSerializer(serializers.Serializer):
 
 class GeocodeQuerySerializer(serializers.Serializer):
     q = serializers.CharField(min_length=2, max_length=200, trim_whitespace=True)
+    # ISO 3166 alpha-2 code(s), comma-separated; blank = worldwide; absent = server default.
+    country = serializers.RegexField(
+        r"^([A-Za-z]{2}(,[A-Za-z]{2})*)?$",
+        required=False,
+        allow_blank=True,
+        error_messages={"invalid": "Use ISO country codes such as 'us' or 'de,fr'."},
+    )
     proximity = serializers.CharField(required=False, allow_blank=True)
 
     def validate_proximity(self, value: str):

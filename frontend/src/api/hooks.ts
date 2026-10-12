@@ -1,11 +1,11 @@
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
 import { fetchHeatmap, planTrip, searchPlaces } from './client';
 
-export function usePlaceSearch(query: string) {
+export function usePlaceSearch(query: string, country: string) {
   const q = query.trim();
   return useQuery({
-    queryKey: ['geocode', q.toLowerCase()],
-    queryFn: ({ signal }) => searchPlaces(q, signal),
+    queryKey: ['geocode', country, q.toLowerCase()],
+    queryFn: ({ signal }) => searchPlaces(q, country, signal),
     enabled: q.length >= 2,
     staleTime: 60 * 60 * 1000,
     placeholderData: keepPreviousData,

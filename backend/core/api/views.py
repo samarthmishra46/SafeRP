@@ -32,7 +32,8 @@ class GeocodeView(APIView):
     def get(self, request):
         query = GeocodeQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
-        results = geocoding.search(query.validated_data["q"], query.validated_data.get("proximity"))
+        data = query.validated_data
+        results = geocoding.search(data["q"], data.get("proximity"), data.get("country"))
         response = Response({"results": results})
         response["Cache-Control"] = "public, max-age=3600"
         return response
@@ -51,6 +52,7 @@ class PlanView(APIView):
             departure=data["departure"],
             weight_lb=data["weightLb"],
             interval_mi=int(data["intervalMi"]),
+            distance_unit=data["distanceUnit"],
             rest_plan=(
                 RestPlanSerializer().to_rest_plan(data["restPlan"])
                 if data.get("restPlan")

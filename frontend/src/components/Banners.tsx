@@ -1,6 +1,7 @@
 import { Alert, AlertTitle, Button } from '@mui/material';
 import type { PlanResponse } from '../api/types';
-import { formatDateTime, formatMilesValue } from '../lib/format';
+import { formatDateTime, formatDistance } from '../lib/format';
+import { useUnits } from '../state/tripStore';
 
 interface NoTravelProps {
   plan: PlanResponse;
@@ -8,6 +9,7 @@ interface NoTravelProps {
 }
 
 export function NoTravelBanner({ plan, onUseDeparture }: NoTravelProps) {
+  const units = useUnits();
   const rec = plan.recommendation;
   if (!rec.notRecommended) return null;
   const best = plan.routes.find((r) => r.id === rec.routeId)!;
@@ -36,7 +38,7 @@ export function NoTravelBanner({ plan, onUseDeparture }: NoTravelProps) {
     >
       <AlertTitle sx={{ fontWeight: 700 }}>Not recommended at this departure time</AlertTitle>
       Even the best option, {best.name}, crosses No Travel conditions for{' '}
-      {formatMilesValue(best.summary.miles.noTravel)} mi.{' '}
+      {formatDistance(best.summary.miles.noTravel, units)}.{' '}
       {s
         ? `Leaving at ${formatDateTime(s.departure)} (+${s.shiftHours} h) clears them on ${suggestedRoute?.name ?? 'the best route'}.`
         : 'No departure in the next 12 hours avoids them; consider postponing the trip.'}

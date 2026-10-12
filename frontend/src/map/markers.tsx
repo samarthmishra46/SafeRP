@@ -2,7 +2,8 @@ import LocalShippingRounded from '@mui/icons-material/LocalShippingRounded';
 import { Box, Tooltip } from '@mui/material';
 import { Marker } from 'react-map-gl/maplibre';
 import type { LngLat, RestStop, StopKind } from '../api/types';
-import { formatDuration, formatMilesValue, formatSliderTime } from '../lib/format';
+import { formatDuration, formatMilepost, formatSliderTime } from '../lib/format';
+import { useUnits } from '../state/tripStore';
 import { STOP_ICON, STOP_LABEL } from '../theme/stopIcons';
 import { MONO } from '../theme/theme';
 
@@ -81,9 +82,10 @@ export function TruckMarker({
 /** A rest stop on the selected route: coffee cup for a break, moon for an overnight rest. */
 export function StopMarker({ stop, routeName }: { stop: RestStop; routeName: string }) {
   const Icon = STOP_ICON[stop.kind];
+  const units = useUnits();
   const text = `${STOP_LABEL[stop.kind]} on ${routeName}, ${formatDuration(stop.durationS)}: ${formatSliderTime(
     new Date(stop.start),
-  )} to ${formatSliderTime(new Date(stop.end))}, mile ${formatMilesValue(stop.distanceMi)}`;
+  )} to ${formatSliderTime(new Date(stop.end))}, ${formatMilepost(stop.distanceMi, units)}`;
   return (
     <Marker longitude={stop.lon} latitude={stop.lat} anchor="center">
       <Tooltip title={text}>

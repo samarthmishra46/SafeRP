@@ -40,8 +40,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export function searchPlaces(q: string, signal?: AbortSignal): Promise<Place[]> {
-  const params = new URLSearchParams({ q });
+/** `country` is an ISO alpha-2 code, or '' to search worldwide. */
+export function searchPlaces(q: string, country: string, signal?: AbortSignal): Promise<Place[]> {
+  const params = new URLSearchParams({ q, country });
   return request<{ results: Place[] }>(`/api/geocode?${params}`, { signal }).then((r) => r.results);
 }
 

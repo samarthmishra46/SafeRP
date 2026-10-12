@@ -12,6 +12,8 @@ Have open beforehand: the deployed app (or `npm run dev` + `runserver`), `backen
 
 ## 0:45 – 2:30 · Plan a trip (happy path)
 
+- Point at the **Country** picker: it filters place search and sets the units. Switch to Germany
+  and back to show km/km/h/kg/°C vs mi/mph/lb/°F.
 - Type "Dallas" in origin and show the debounced autocomplete; pick it. Destination "Chicago".
   Show the swap button.
 - Departure: next hour. Weight: click **Heavy · 45k** and mention that the presets sit in different

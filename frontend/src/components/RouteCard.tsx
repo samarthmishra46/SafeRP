@@ -2,7 +2,8 @@ import VerifiedRounded from '@mui/icons-material/VerifiedRounded';
 import { alpha, Box, ButtonBase, Paper, Stack, Tooltip, Typography } from '@mui/material';
 import { memo } from 'react';
 import type { RiskLevel, Route } from '../api/types';
-import { formatDuration, formatMiles, formatMilesValue, formatTime } from '../lib/format';
+import { formatDistance, formatDistanceValue, formatDuration, formatTime } from '../lib/format';
+import { useUnits } from '../state/tripStore';
 import { MILES_KEY, RISK_LABEL, RISK_LEVELS } from '../theme/risk';
 import { STOP_ICON } from '../theme/stopIcons';
 import { RiskBadge, RiskSwatch } from './RiskBadge';
@@ -23,8 +24,9 @@ export const RouteCard = memo(function RouteCard({
   selected,
   onSelect,
 }: Props) {
+  const units = useUnits();
   const { miles, maxLevel } = route.summary;
-  const label = `${route.name}${recommended ? ', recommended' : ''}. ${formatMiles(route.distanceMi)}, ${formatDuration(route.durationS)}, worst risk ${RISK_LABEL[maxLevel]}.`;
+  const label = `${route.name}${recommended ? ', recommended' : ''}. ${formatDistance(route.distanceMi, units)}, ${formatDuration(route.durationS)}, worst risk ${RISK_LABEL[maxLevel]}.`;
 
   return (
     <Paper
@@ -82,7 +84,7 @@ export const RouteCard = memo(function RouteCard({
           </Typography>
         )}
         <Stack direction="row" sx={{ mt: 1, gap: 2, flexWrap: 'wrap' }}>
-          <Stat label="Distance" value={formatMiles(route.distanceMi)} />
+          <Stat label="Distance" value={formatDistance(route.distanceMi, units)} />
           <Stat label="Drive time" value={formatDuration(route.durationS)} />
           {route.stops.length > 0 && (
             <Stat label="With stops" value={formatDuration(route.tripDurationS)} />
@@ -97,16 +99,16 @@ export const RouteCard = memo(function RouteCard({
       <Stack
         direction="row"
         component="ul"
-        aria-label={`Miles by risk level on ${route.name}`}
+        aria-label={`Distance by risk level on ${route.name}`}
         sx={{ listStyle: 'none', p: 0, m: 0, mt: 1, justifyContent: 'space-between' }}
       >
         {LEVELS_DESC.map((level) => {
           const value = miles[MILES_KEY[level]];
           return (
-            <Tooltip key={level} title={`${RISK_LABEL[level]} miles`}>
+            <Tooltip key={level} title={`${RISK_LABEL[level]} ${units.distanceWord}`}>
               <Box
                 component="li"
-                aria-label={`${RISK_LABEL[level]}: ${formatMilesValue(value)} miles`}
+                aria-label={`${RISK_LABEL[level]}: ${formatDistanceValue(value, units)} ${units.distanceWord}`}
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
@@ -116,7 +118,7 @@ export const RouteCard = memo(function RouteCard({
               >
                 <RiskSwatch level={level} />
                 <Typography variant="mono" sx={{ fontSize: '0.75rem' }}>
-                  {formatMilesValue(value)}
+                  {formatDistanceValue(value, units)}
                 </Typography>
               </Box>
             </Tooltip>

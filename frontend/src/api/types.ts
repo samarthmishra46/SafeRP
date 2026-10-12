@@ -142,6 +142,8 @@ export interface PlanRequest {
   weightLb: number;
   intervalMi: 10 | 25 | 50;
   restPlan?: RestPlan | null;
+  /** Unit for distances in the recommendation sentence. */
+  distanceUnit?: 'mi' | 'km';
 }
 
 export type HeatLayer = 'wind' | 'rain' | 'snow';

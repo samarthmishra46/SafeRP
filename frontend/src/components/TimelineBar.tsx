@@ -28,6 +28,8 @@ import { formatHourOffset, formatSliderTime } from '../lib/format';
 import { SLIDER_HOURS, departureHour, sliderTimeMs, truckStateAtHour } from '../lib/timeline';
 import { useRafThrottle } from '../lib/useRafThrottle';
 import { heatStops } from '../map/layers';
+import { toRain, toSnow, toSpeed, type Units } from '../lib/units';
+import { useUnits } from '../state/tripStore';
 import { useUi, type PlaySpeed } from '../state/uiStore';
 import { STOP_LABEL } from '../theme/stopIcons';
 import { HazardTrack } from './HazardTrack';
@@ -54,11 +56,25 @@ const MARKS = [0, 6, 12, 18, 24, 30, 36, 42, 48].map((value) => ({
 }));
 const COMPACT_MARKS = MARKS.filter((m) => m.value % 12 === 0);
 
-const LAYER_META: Record<HeatLayer, { label: string; unit: string; ticks: number[] }> = {
-  wind: { label: 'Wind', unit: 'mph', ticks: [25, 35, 45, 55] },
-  rain: { label: 'Rain', unit: 'in/h', ticks: [0.1, 0.25, 0.5, 1] },
-  snow: { label: 'Snow', unit: 'in/h', ticks: [0.5, 1, 2, 3] },
+/** Ticks at the risk thresholds, in API units (mph, in/h); labels are converted for display. */
+const LAYER_META: Record<
+  HeatLayer,
+  {
+    label: string;
+    ticks: number[];
+    unit: (u: Units) => string;
+    convert: (v: number, u: Units) => number;
+  }
+> = {
+  wind: { label: 'Wind', ticks: [25, 35, 45, 55], unit: (u) => u.speed, convert: toSpeed },
+  rain: { label: 'Rain', ticks: [0.1, 0.25, 0.5, 1], unit: (u) => u.rain, convert: toRain },
+  snow: { label: 'Snow', ticks: [0.5, 1, 2, 3], unit: (u) => u.snow, convert: toSnow },
 };
+
+function tickLabel(value: number): string {
+  if (value >= 10) return String(Math.round(value));
+  return String(Math.round(value * 10) / 10);
+}
 
 const HeatScale = memo(function HeatScale({
   layer,
@@ -73,17 +89,19 @@ const HeatScale = memo(function HeatScale({
   const max = stops[stops.length - 1][0];
   const pos = (v: number) => ((v - min) / (max - min)) * 100;
   const gradient = `linear-gradient(90deg, ${stops.map(([v, c]) => `${c} ${pos(v)}%`).join(', ')})`;
+  const units = useUnits();
   const meta = LAYER_META[layer];
+  const unit = meta.unit(units);
   const title = layer === 'wind' ? `Wind ${metric === 'gust' ? 'gusts' : 'speed'}` : meta.label;
   return (
-    <Box sx={{ minWidth: 150 }} aria-label={`${title} scale in ${meta.unit}`} role="img">
+    <Box sx={{ minWidth: 150 }} aria-label={`${title} scale in ${unit}`} role="img">
       <Typography
         variant="overline"
         color="text.secondary"
         component="div"
         sx={{ lineHeight: 1.4 }}
       >
-        {title} · {meta.unit}
+        {title} · {unit}
       </Typography>
       <Box
         sx={{ height: 6, borderRadius: 1, background: gradient, border: 1, borderColor: 'divider' }}
@@ -101,7 +119,7 @@ const HeatScale = memo(function HeatScale({
               color: 'text.secondary',
             }}
           >
-            {t}
+            {tickLabel(meta.convert(t, units))}
           </Typography>
         ))}
       </Box>

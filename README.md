@@ -33,6 +33,11 @@ responses for illustration.*
   - Truck markers show where each truck would be at the slider time.
   - Scrubbing never makes a network request. The slider explores the weather; it never changes
     risk or the recommendation.
+- **Any country, local units:**
+  - A country picker filters origin/destination search (or search worldwide) and switches the
+    units: mi/mph/lb/°F for the US, miles and mph with metric weights and weather for the UK, and
+    km, km/h, kg, mm/h and °C elsewhere.
+  - The risk rules are unchanged; values are converted for display only.
 - **Optional rest stops:**
   - Tick "Plan rest stops" to add short breaks and/or an overnight rest, each with its own switch
     and editable timing. Presets (US, Canada, EU/UK, Australia, India) only fill in typical values;
@@ -142,18 +147,19 @@ cd backend  && uv run pytest && uv run ruff check . && uv run ruff format --chec
 cd frontend && npm test && npm run lint && npm run typecheck && npm run format:check
 ```
 
-- **Backend:** 158 pytest cases. They include every threshold edge
+- **Backend:** 165 pytest cases. They include every threshold edge
   (24.9/25/34.9/35/44.9/45/54.9/55; 0.09/0.10/0.25/0.50/1.00/1.01; 0.49/0.5/1.0/2.0/3.0/3.01), every
   load rule at 30,000/30,001/40,000/40,001 lb, mile attribution, ETA interpolation, ranking
   including ties, and API tests against recorded Mapbox/Open-Meteo responses
   (`tests/fixtures`, re-recordable with `uv run python scripts/record_fixtures.py`), plus the hourly
   hazard levels behind the animations and the rest-stop scheduler.
-- **Frontend:** 67 Vitest cases. They cover formatting, geometry, form validation, route cards, the
+- **Frontend:** 82 Vitest cases. They cover formatting, geometry, form validation, route cards, the
   risk strip's keyboard model, the results panel and the No Travel banner. They also cover the
   slider: truck position at an hour, the worst-level hazard timeline, departure jump, speeds, and
   keyboard. And the animations: dominant hazard, the Moderate-or-higher filter, wind rotation,
   and the frame-capped, pausable animation clock. And rest stops: settings and presets, the
-  parked truck, and rest hours on the hazard timeline.
+  parked truck, and rest hours on the hazard timeline. And units: per-country systems, conversions,
+  formatting and weight conversion when the country changes.
 
 ## Configuration
 
@@ -173,7 +179,7 @@ Backend (`backend/.env`, or platform environment variables):
 | `FORECAST_HORIZON_HOURS` | `168` | Forecast fetched per point; trips must end inside it |
 | `MAX_WEATHER_POINTS` | `500` | Per-plan cap on forecast locations |
 | `HEATMAP_MAX_POINTS` | `400` | Grid size cap |
-| `GEOCODE_COUNTRY` | `us` | Place-search country filter (empty = worldwide) |
+| `GEOCODE_COUNTRY` | `us` | Default place-search country when a client sends none (the app always sends the picker's choice) |
 | `THROTTLE_PLAN` / `THROTTLE_HEATMAP` / `THROTTLE_GEOCODE` | `12/min` / `12/min` / `120/min` | Per-IP limits |
 | `HTTP_FORCE_IPV4` | `false` | Work around broken IPv6 DNS |
 
@@ -188,7 +194,7 @@ names the service; never a stack trace). Responses are gzip-compressed.
 | Endpoint | Description |
 | --- | --- |
 | `GET /api/health` | Liveness and whether a Mapbox token is configured |
-| `GET /api/geocode?q=dal&proximity=lon,lat` | Place autocomplete (`results[]`: id, name, label, lon, lat) |
+| `GET /api/geocode?q=dal&country=us&proximity=lon,lat` | Place autocomplete (`results[]`: id, name, label, lon, lat). `country` takes ISO code(s); blank means worldwide |
 | `POST /api/plan` | Routes, checkpoints, summaries and recommendation (below) |
 | `GET /api/heatmap?bbox=minLon,minLat,maxLon,maxLat` | Corridor grid: `points` once, then per hour (49 frames) `wind`/`rain`/`snow` values, `levels.{wind,rain,snow}` (one level digit per point) and `windDir` |
 
@@ -200,6 +206,7 @@ names the service; never a stack trace). Responses are gzip-compressed.
   "departure": "2026-10-12T15:00:00Z",
   "weightLb": 36000,          // 1,000–80,000
   "intervalMi": 25,           // 10 | 25 | 50
+  "distanceUnit": "mi",       // optional: "mi" | "km", wording of the reason only
   "restPlan": {               // optional; either part may be null
     "breaks": { "everyH": 8, "minutes": 30 },
     "overnight": { "afterDrivingH": 11, "hours": 10 }
@@ -234,8 +241,8 @@ rules, plus wind direction in degrees. It never affects risk or ranking.
 
 ## Assumptions
 
-- US trucking: imperial units, a US place-search filter, and the 80,000 lb federal gross limit as
-  the upper bound. Routing itself works wherever Mapbox does.
+- Works for any country Mapbox routes in. The load range stays the brief's 1,000–80,000 lb (the
+  US federal gross limit), shown in kg outside the US.
 - Mapbox's driving profile with `max_weight` approximates truck routing. Height, length, hazmat
   and other truck restrictions are not modelled.
 - The forecast is treated as truth for the hour bucket containing each ETA. Precipitation and gusts

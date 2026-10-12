@@ -86,8 +86,8 @@ Judgment calls made where the brief was ambiguous, with the reasoning behind eac
   the service named. All use `{"error": {"code", "message"}}`.
 - **Departure slack = 10 minutes** in the past, so a form filled in slowly still submits.
 - **Origin = destination** means within 500 m of each other.
-- **Place search is limited to the US** (`GEOCODE_COUNTRY=us`, configurable). Pounds, mph and the
-  80,000 lb ceiling (the US federal gross limit) all signal US trucking.
+- **Place search follows a country picker** (see "Countries and units" below). `GEOCODE_COUNTRY` (default
+  `us`) is only the server default for clients that don't send a country.
 - **Geocoding cache (24 h)** stores Mapbox's temporary-geocoding results only to dedupe identical
   autocomplete keystrokes; they are never persisted beyond the cache TTL.
 - **Response geometry** is simplified with Douglas–Peucker at 15 m (invisible at route-overview zooms),
@@ -321,3 +321,34 @@ do not hit them.
   - On the slider's hazard strip, rest hours are hatched and not counted as road risk.
 - **Weather while parked** doesn't count toward risk miles. Risk is per mile driven, and the
   checkpoint forecasts already use the delayed ETAs.
+
+## Countries and units
+
+- **A country picker at the top of the trip form** filters place search to that country. Mapbox's
+  `country` parameter takes ISO 3166 alpha-2 codes, and "Worldwide" sends none. The choice is
+  remembered in `localStorage`. Country names come from the browser (`Intl.DisplayNames`), so no
+  country list data ships with the app. Routes may still cross borders: the picker only narrows
+  the search.
+- **The country also picks the display units:**
+
+  | Countries | Distance | Speed | Load weight | Rain | Snow | Temperature |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | US (and its territories), Liberia | mi | mph | lb | in/h | in/h | °F |
+  | United Kingdom | mi | mph | kg | mm/h | cm/h | °C |
+  | Everyone else, and Worldwide | km | km/h | kg | mm/h | cm/h | °C |
+
+- **The API keeps miles, mph, inches and pounds.** The risk rules are defined in those units, so
+  thresholds and ranking are unchanged, and the UI converts only for display. The heatmap scale
+  shows the same thresholds converted (25/35/45/55 mph → 40/56/72/89 km/h; 0.1/0.25/0.5/1 in/h
+  → 2.5/6.4/12.7/25.4 mm/h).
+- **Load weight is typed in the country's unit** and converted to pounds on submit. Switching
+  country converts the typed value, so the load stays the same (36,000 lb ↔ 16,329 kg).
+  - The brief's 1,000–80,000 lb range becomes 454–36,287 kg, rounded inward so the converted
+    value never leaves the lb range.
+  - Metric presets (7 / 16 / 20 / 36 t) land in the same load-rule bands as the lb presets.
+- **Checkpoint intervals stay 10/25/50 miles** (the brief). In km they are labelled 16/40/80 rather
+  than 16.1/40.2/80.5.
+- **The recommendation sentence is written by the backend**, so the plan request carries
+  `distanceUnit` ("mi"/"km"). Only the wording changes ("0 Severe km vs 29 on Route A"); every
+  number in the response stays in miles. A planning error that mentioned "10-mile interval" now
+  says "this checkpoint interval".

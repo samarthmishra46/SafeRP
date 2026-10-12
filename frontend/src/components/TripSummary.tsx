@@ -1,10 +1,12 @@
 import EditOutlined from '@mui/icons-material/EditOutlined';
 import { Box, Button, Typography } from '@mui/material';
 import type { PlanResponse } from '../api/types';
-import { formatDateTime, formatWeight } from '../lib/format';
+import { formatDateTime, formatInterval, formatWeight } from '../lib/format';
+import { useUnits } from '../state/tripStore';
 import { useTrip } from '../state/tripStore';
 
 export function TripSummary({ plan, onEdit }: { plan: PlanResponse; onEdit: () => void }) {
+  const units = useUnits();
   const origin = useTrip((s) => s.origin);
   const destination = useTrip((s) => s.destination);
   const short = (label?: string) => label?.split(',')[0] ?? '—';
@@ -24,8 +26,8 @@ export function TripSummary({ plan, onEdit }: { plan: PlanResponse; onEdit: () =
           {short(origin?.label)} → {short(destination?.label)}
         </Typography>
         <Typography variant="caption" component="p">
-          {formatDateTime(plan.meta.departure)} · {formatWeight(plan.meta.weightLb)} ·{' '}
-          {plan.meta.intervalMi}-mi checkpoints
+          {formatDateTime(plan.meta.departure)} · {formatWeight(plan.meta.weightLb, units)} ·{' '}
+          {formatInterval(plan.meta.intervalMi, units)} checkpoints
           {plan.meta.restPlan && ' · rest stops planned'}
         </Typography>
       </Box>

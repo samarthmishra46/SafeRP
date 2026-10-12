@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { usePlaceSearch } from '../api/hooks';
 import type { Place } from '../api/types';
 import { useDebounced } from '../lib/useDebounced';
+import { useTrip } from '../state/tripStore';
 
 interface Props {
   id: string;
@@ -24,7 +25,8 @@ export function PlaceAutocomplete({ id, label, value, onChange, error, startIcon
   }
   const query = useDebounced(input, 250);
   const typingMatchesValue = value !== null && input === value.label;
-  const search = usePlaceSearch(typingMatchesValue ? '' : query);
+  const country = useTrip((s) => s.country);
+  const search = usePlaceSearch(typingMatchesValue ? '' : query, country);
   const options = search.data ?? [];
 
   const noOptionsText =

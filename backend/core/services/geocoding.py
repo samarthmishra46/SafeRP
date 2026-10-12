@@ -42,10 +42,14 @@ def _to_place(feature: dict) -> dict | None:
     }
 
 
-def search(query: str, proximity: tuple[float, float] | None = None) -> list[dict]:
+def search(
+    query: str, proximity: tuple[float, float] | None = None, country: str | None = None
+) -> list[dict]:
+    """Forward search. `country`: ISO code(s), "" for worldwide, None for the server default."""
     q = " ".join(query.split())
     prox = f"{proximity[0]:.2f},{proximity[1]:.2f}" if proximity else ""
-    key = cache.make_key("geo", q.lower(), prox, settings.GEOCODE_COUNTRY)
+    country = (settings.GEOCODE_COUNTRY if country is None else country).lower()
+    key = cache.make_key("geo", q.lower(), prox, country or "world")
     cached = cache.get(key)
     if cached is not None:
         return cached
@@ -57,8 +61,8 @@ def search(query: str, proximity: tuple[float, float] | None = None) -> list[dic
         "language": "en",
         "access_token": _check_token(),
     }
-    if settings.GEOCODE_COUNTRY:
-        params["country"] = settings.GEOCODE_COUNTRY
+    if country:
+        params["country"] = country
     if prox:
         params["proximity"] = prox
 

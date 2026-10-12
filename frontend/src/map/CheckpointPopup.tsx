@@ -10,12 +10,14 @@ import { RiskBadge } from '../components/RiskBadge';
 import {
   formatCompass,
   formatDateTime,
-  formatMilesValue,
-  formatPrecip,
-  formatTempF,
+  formatMilepost,
+  formatRain,
+  formatSnow,
+  formatTemperature,
   formatWind,
   joinFactors,
 } from '../lib/format';
+import { useUnits } from '../state/tripStore';
 
 interface Props {
   checkpoint: Checkpoint;
@@ -54,6 +56,7 @@ function Row({
 }
 
 export function CheckpointPopup({ checkpoint: c, routeName, windMetric, pinned, onClose }: Props) {
+  const units = useUnits();
   const w = c.weather;
   const iconSx = { fontSize: 16 };
   const driverText =
@@ -68,7 +71,7 @@ export function CheckpointPopup({ checkpoint: c, routeName, windMetric, pinned, 
       >
         <Box>
           <Typography variant="overline" color="text.secondary" component="div">
-            {routeName} · mile {formatMilesValue(c.distanceMi)}
+            {routeName} · {formatMilepost(c.distanceMi, units)}
           </Typography>
           <Typography variant="subtitle2" component="p">
             ETA {formatDateTime(c.eta)}
@@ -97,21 +100,29 @@ export function CheckpointPopup({ checkpoint: c, routeName, windMetric, pinned, 
         <Row
           icon={<AirRounded sx={iconSx} />}
           label={`Wind ${formatCompass(w.windDirectionDeg)}`.trim()}
-          value={formatWind(w.windSpeedMph)}
+          value={formatWind(w.windSpeedMph, units)}
           emphasis={windMetric === 'sustained'}
         />
         <Row
           icon={<AirRounded sx={iconSx} />}
           label="Gusts"
-          value={formatWind(w.windGustMph)}
+          value={formatWind(w.windGustMph, units)}
           emphasis={windMetric === 'gust'}
         />
-        <Row icon={<WaterDropOutlined sx={iconSx} />} label="Rain" value={formatPrecip(w.rainIn)} />
-        <Row icon={<AcUnitRounded sx={iconSx} />} label="Snow" value={formatPrecip(w.snowIn)} />
+        <Row
+          icon={<WaterDropOutlined sx={iconSx} />}
+          label="Rain"
+          value={formatRain(w.rainIn, units)}
+        />
+        <Row
+          icon={<AcUnitRounded sx={iconSx} />}
+          label="Snow"
+          value={formatSnow(w.snowIn, units)}
+        />
         <Row
           icon={<ThermostatRounded sx={iconSx} />}
           label="Temperature"
-          value={formatTempF(w.temperatureC)}
+          value={formatTemperature(w.temperatureC, units)}
         />
       </Stack>
       <Typography variant="caption" component="p" sx={{ mt: 1 }}>

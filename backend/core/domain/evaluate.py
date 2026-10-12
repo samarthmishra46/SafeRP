@@ -143,11 +143,14 @@ def evaluate_plan(
     load_lb: float,
     wind_metric: str,
     departure: datetime,
+    distance_unit: str = "mi",
 ) -> PlanEvaluation:
     if not routes:
         raise ValueError("At least one route is required")
     evaluations, order = _rank_routes(routes, forecasts, load_lb, wind_metric)
-    reason = explain([e.name for e in evaluations], [e.summary for e in evaluations], order)
+    reason = explain(
+        [e.name for e in evaluations], [e.summary for e in evaluations], order, distance_unit
+    )
     best = evaluations[order[0]]
     not_recommended = best.summary.miles(RiskLevel.NO_TRAVEL) > 0
     suggestion = (

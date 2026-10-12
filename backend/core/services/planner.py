@@ -16,12 +16,14 @@ from core.domain.evaluate import (
     weather_key,
 )
 from core.domain.geo import RouteProfile, build_profile, simplify_indices
-from core.domain.weather import floor_hour
+from core.domain.hazards import HazardRow, hazard_row
+from core.domain.weather import floor_hour, hourly_frame
 from core.errors import PlanningError
 
 from . import routing, weather
 
 SIMPLIFY_TOLERANCE_M = 15.0
+HOURLY_HOURS = 48  # same window as the heatmap slider
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,9 @@ class PlanResult:
     notices: list[str]
     generated_at: datetime
     wind_metric: str
+    # Per route, per slider hour: hazard levels at each checkpoint (for the animations only).
+    hourly_anchor: datetime
+    hourly: list[list[HazardRow]]
 
 
 def forecast_horizon_end(now: datetime) -> datetime:
@@ -134,5 +139,16 @@ def plan_trip(req: PlanRequest, now: datetime | None = None) -> PlanResult:
             code="forecast_unavailable",
         ) from exc
 
+    anchor = floor_hour(now)
+    hourly = []
+    for r in routes:
+        series = [forecasts[weather_key(c.lon, c.lat)] for c in r.checkpoints]
+        hourly.append(
+            [
+                hazard_row([hourly_frame(s, anchor, h, settings.WIND_METRIC) for s in series])
+                for h in range(HOURLY_HOURS + 1)
+            ]
+        )
+
     notices = [route_set.notice] if route_set.notice else []
-    return PlanResult(req, routes, evaluation, notices, now, settings.WIND_METRIC)
+    return PlanResult(req, routes, evaluation, notices, now, settings.WIND_METRIC, anchor, hourly)

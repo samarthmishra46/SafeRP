@@ -6,7 +6,6 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Map, {
   Layer,
-  Marker,
   NavigationControl,
   Popup,
   Source,
@@ -15,18 +14,14 @@ import Map, {
 } from 'react-map-gl/maplibre';
 import type { HeatmapResponse, PlanResponse } from '../api/types';
 import { boundsOf } from '../lib/geo';
-import { truckPositionAtHour } from '../lib/timeline';
+import { usePrefersReducedMotion } from '../lib/usePrefersReducedMotion';
 import { useUi } from '../state/uiStore';
+import { AnimationToggleControl } from './AnimationToggleControl';
 import { CheckpointPopup } from './CheckpointPopup';
-import {
-  MAP_STYLES,
-  checkpointCode,
-  checkpointLayers,
-  heatLayerProps,
-  routeLayers,
-  segmentLayers,
-} from './layers';
-import { EndpointMarker, TruckMarker } from './markers';
+import { CorridorWeatherLayers, RouteWeatherOverlay } from './HourLayers';
+import { MAP_STYLES, checkpointCode, checkpointLayers, routeLayers, segmentLayers } from './layers';
+import { EndpointMarker } from './markers';
+import { WeatherClock, registerHazardImages } from './weatherAnimation';
 
 export interface MapPadding {
   top: number;
@@ -66,10 +61,11 @@ export default function MapView({ plan, heatmap, timelineAnchorMs, padding }: Pr
   const selectedRouteId = useUi((s) => s.selectedRouteId);
   const hovered = useUi((s) => s.hovered);
   const pinned = useUi((s) => s.pinned);
-  const heatHour = useUi((s) => s.heatHour);
-  const heatLayer = useUi((s) => s.heatLayer);
-  const heatVisible = useUi((s) => s.heatVisible);
-  const { selectRoute, setHovered, pinCheckpoint } = useUi.getState();
+  const animationsEnabled = useUi((s) => s.animationsEnabled);
+  const { selectRoute, setHovered, pinCheckpoint, toggleAnimations } = useUi.getState();
+  const reducedMotion = usePrefersReducedMotion();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [clock, setClock] = useState<WeatherClock | null>(null);
 
   const selected = plan?.routes.find((r) => r.id === selectedRouteId) ?? plan?.routes[0];
 
@@ -117,31 +113,33 @@ export default function MapView({ plan, heatmap, timelineAnchorMs, padding }: Pr
     };
   }, [selected]);
 
-  // Point features are built once per heatmap; the slider only swaps the `v` property.
-  const heatPoints = heatmap?.points;
-  const heatData = useMemo<FeatureCollection>(() => {
-    if (!heatmap || !heatPoints) return EMPTY_FC;
-    const values = heatmap[heatLayer][Math.min(heatHour, heatmap.hours)];
-    return {
-      type: 'FeatureCollection',
-      features: heatPoints.map((p, i) => ({
-        type: 'Feature',
-        properties: { v: values[i] },
-        geometry: { type: 'Point', coordinates: p },
-      })),
+  useEffect(() => {
+    clock?.set({ enabled: animationsEnabled, reducedMotion });
+  }, [clock, animationsEnabled, reducedMotion]);
+
+  // Pause the animation loop when the tab is hidden or the map is scrolled/covered out of view.
+  useEffect(() => {
+    if (!clock) return;
+    const onVisibility = () => clock.set({ pageVisible: !document.hidden });
+    document.addEventListener('visibilitychange', onVisibility);
+    const el = containerRef.current;
+    const observer =
+      el && 'IntersectionObserver' in window
+        ? new IntersectionObserver(([entry]) => clock.set({ mapVisible: entry.isIntersecting }))
+        : null;
+    if (el) observer?.observe(el);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      observer?.disconnect();
     };
-  }, [heatmap, heatPoints, heatLayer, heatHour]);
+  }, [clock]);
+
+  useEffect(() => () => clock?.destroy(), [clock]);
 
   // --- Layer styles (memoised per theme / heat config) ------------------------------------
   const rLayers = useMemo(() => routeLayers(mode), [mode]);
   const sLayers = useMemo(() => segmentLayers(mode), [mode]);
   const cLayers = useMemo(() => checkpointLayers(mode), [mode]);
-  const heatStyle = useMemo(() => {
-    if (!heatmap) return null;
-    const midLat = (heatmap.points[0][1] + heatmap.points[heatmap.points.length - 1][1]) / 2;
-    return heatLayerProps(heatLayer, mode, heatmap.spacingDeg, midLat, heatVisible);
-  }, [heatmap, heatLayer, mode, heatVisible]);
-
   // The focused checkpoint can belong to any route (e.g. hovering another card's risk strip).
   const focus = pinned ?? (hovered ? { routeId: hovered.routeId, index: hovered.index } : null);
   const focusRoute = focus ? plan?.routes.find((r) => r.id === focus.routeId) : undefined;
@@ -165,17 +163,6 @@ export default function MapView({ plan, heatmap, timelineAnchorMs, padding }: Pr
         : EMPTY_FC,
     [focusCheckpoint],
   );
-
-  // --- Truck positions at the slider time --------------------------------------------------
-  const trucks = useMemo(() => {
-    if (!plan || !heatmap) return [];
-    return plan.routes
-      .flatMap((r) => {
-        const pos = truckPositionAtHour(r, timelineAnchorMs, heatHour);
-        return pos ? [{ id: r.id, pos, selected: r.id === selected?.id }] : [];
-      })
-      .sort((a, b) => Number(a.selected) - Number(b.selected)); // selected truck drawn on top
-  }, [plan, heatmap, timelineAnchorMs, heatHour, selected?.id]);
 
   // --- Camera ------------------------------------------------------------------------------
   const fittedPlan = useRef<PlanResponse | null>(null);
@@ -203,7 +190,10 @@ export default function MapView({ plan, heatmap, timelineAnchorMs, padding }: Pr
 
   const syncLabelLayer = useCallback(() => {
     const map = mapRef.current?.getMap();
-    const id = map?.getStyle()?.layers?.find((l) => l.type === 'symbol')?.id;
+    // First basemap label layer; our own sources all end in "-src" and must be skipped.
+    const id = map
+      ?.getStyle()
+      ?.layers?.find((l) => l.type === 'symbol' && !l.source.endsWith('-src'))?.id;
     setLabelLayerId((prev) => (prev === id ? prev : id));
   }, []);
 
@@ -252,7 +242,7 @@ export default function MapView({ plan, heatmap, timelineAnchorMs, padding }: Pr
 
   const first = plan?.routes[0];
   return (
-    <Box sx={{ position: 'absolute', inset: 0 }}>
+    <Box ref={containerRef} sx={{ position: 'absolute', inset: 0 }}>
       <Map
         ref={mapRef}
         initialViewState={INITIAL_VIEW}
@@ -261,7 +251,12 @@ export default function MapView({ plan, heatmap, timelineAnchorMs, padding }: Pr
         onMouseMove={onMouseMove}
         onMouseLeave={onMouseLeave}
         onClick={onClick}
-        onLoad={() => {
+        onLoad={(e) => {
+          const map = e.target;
+          const clock = new WeatherClock(() => map.triggerRepaint());
+          clock.set({ pageVisible: !document.hidden });
+          registerHazardImages(map, clock);
+          setClock(clock);
           setLoaded(true);
           syncLabelLayer();
         }}
@@ -274,12 +269,14 @@ export default function MapView({ plan, heatmap, timelineAnchorMs, padding }: Pr
         aria-label="Route map"
       >
         <NavigationControl position="top-right" showCompass={false} />
+        <AnimationToggleControl enabled={animationsEnabled} onToggle={toggleAnimations} />
 
-        {heatStyle && (
-          <Source id="heat-src" type="geojson" data={heatData}>
-            <Layer {...heatStyle} beforeId={labelLayerId} />
-          </Source>
-        )}
+        <CorridorWeatherLayers
+          heatmap={heatmap}
+          mode={mode}
+          labelLayerId={labelLayerId}
+          clock={clock}
+        />
 
         <Source id="routes-src" type="geojson" data={routesData}>
           <Layer {...rLayers.mutedCasing} beforeId={labelLayerId} />
@@ -302,18 +299,21 @@ export default function MapView({ plan, heatmap, timelineAnchorMs, padding }: Pr
           <Layer {...cLayers.label} />
         </Source>
 
+        <RouteWeatherOverlay
+          plan={plan}
+          heatmap={heatmap}
+          anchorMs={timelineAnchorMs}
+          selectedId={selected?.id}
+          mode={mode}
+          clock={clock}
+        />
+
         {first && (
           <>
             <EndpointMarker kind="origin" lngLat={first.geometry[0]} />
             <EndpointMarker kind="destination" lngLat={first.geometry[first.geometry.length - 1]} />
           </>
         )}
-
-        {trucks.map((t) => (
-          <Marker key={t.id} longitude={t.pos[0]} latitude={t.pos[1]} anchor="center">
-            <TruckMarker label={t.id} selected={t.selected} />
-          </Marker>
-        ))}
 
         {focusRoute && focusCheckpoint && (
           <Popup

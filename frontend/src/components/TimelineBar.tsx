@@ -22,8 +22,8 @@ import {
   useTheme,
 } from '@mui/material';
 import { visuallyHidden } from '@mui/utils';
-import { useEffect, useMemo, useState } from 'react';
-import type { HeatLayer, HeatmapResponse, PlanResponse } from '../api/types';
+import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
+import type { HeatLayer, HeatmapResponse, PlanResponse, Route } from '../api/types';
 import { formatHourOffset, formatSliderTime } from '../lib/format';
 import { SLIDER_HOURS, departureHour, sliderTimeMs } from '../lib/timeline';
 import { useRafThrottle } from '../lib/useRafThrottle';
@@ -51,6 +51,7 @@ const MARKS = [0, 6, 12, 18, 24, 30, 36, 42, 48].map((value) => ({
   value,
   label: value === 0 ? 'Now' : `${value}h`,
 }));
+const COMPACT_MARKS = MARKS.filter((m) => m.value % 12 === 0);
 
 const LAYER_META: Record<HeatLayer, { label: string; unit: string; ticks: number[] }> = {
   wind: { label: 'Wind', unit: 'mph', ticks: [25, 35, 45, 55] },
@@ -58,7 +59,13 @@ const LAYER_META: Record<HeatLayer, { label: string; unit: string; ticks: number
   snow: { label: 'Snow', unit: 'in/h', ticks: [0.5, 1, 2, 3] },
 };
 
-function HeatScale({ layer, metric }: { layer: HeatLayer; metric: 'gust' | 'sustained' }) {
+const HeatScale = memo(function HeatScale({
+  layer,
+  metric,
+}: {
+  layer: HeatLayer;
+  metric: 'gust' | 'sustained';
+}) {
   const mode = useTheme().palette.mode;
   const stops = heatStops(layer, mode);
   const min = stops[0][0];
@@ -99,28 +106,14 @@ function HeatScale({ layer, metric }: { layer: HeatLayer; metric: 'gust' | 'sust
       </Box>
     </Box>
   );
-}
+});
 
-export function TimelineBar({ heatmap, loading, error, onRetry, plan, anchorMs, compact }: Props) {
-  const hour = useUi((s) => s.heatHour);
-  const layer = useUi((s) => s.heatLayer);
-  const visible = useUi((s) => s.heatVisible);
+/** Play/pause with its own playback loop (`speed` forecast hours per second, stops at +48 h). */
+function PlayButton({ maxHour, disabled }: { maxHour: number; disabled: boolean }) {
   const playing = useUi((s) => s.playing);
   const speed = useUi((s) => s.playSpeed);
-  const selectedRouteId = useUi((s) => s.selectedRouteId);
-  const { setHeatHour, setHeatLayer, setHeatVisible, setPlaying, setPlaySpeed } = useUi.getState();
-  const maxHour = heatmap?.hours ?? SLIDER_HOURS;
-  const route =
-    plan.routes.find((r) => r.id === selectedRouteId) ??
-    plan.routes.find((r) => r.id === plan.recommendation.routeId)!;
+  const { setHeatHour, setPlaying } = useUi.getState();
 
-  // While dragging, the thumb follows the pointer immediately but the map (store) updates at
-  // most once per animation frame.
-  const [dragHour, setDragHour] = useState<number | null>(null);
-  const commitHour = useRafThrottle(setHeatHour);
-  const shownHour = dragHour ?? hour;
-
-  // Playback: `speed` forecast hours per second; stops at the end of the window.
   useEffect(() => {
     if (!playing) return;
     const id = window.setInterval(() => {
@@ -134,38 +127,40 @@ export function TimelineBar({ heatmap, loading, error, onRetry, plan, anchorMs, 
     return () => window.clearInterval(id);
   }, [playing, speed, maxHour, setHeatHour, setPlaying]);
 
-  const at = sliderTimeMs(anchorMs, shownHour);
-  const depHour = departureHour(anchorMs, plan.meta.departure, maxHour);
-
-  // Where are the trucks at this slider time?
-  const tripStatus = useMemo(() => {
-    const dep = Date.parse(plan.meta.departure);
-    const arrivals = plan.routes.map((r) => Date.parse(r.arrival));
-    if (at < dep) {
-      const h = Math.ceil((dep - at) / 3_600_000);
-      return `Departs in ${h} h`;
-    }
-    if (at > Math.max(...arrivals)) return 'All routes arrived';
-    return 'Trucks shown on map';
-  }, [plan, at]);
-
-  const togglePlay = () => {
-    if (!playing && hour >= maxHour) setHeatHour(0);
+  const toggle = () => {
+    if (!playing && useUi.getState().heatHour >= maxHour) setHeatHour(0);
     setPlaying(!playing);
   };
 
-  const jumpToDeparture = () => {
-    if (depHour === null) return;
-    setPlaying(false);
-    setHeatHour(depHour);
-  };
+  return (
+    <Tooltip title={playing ? 'Pause' : 'Play forecast'}>
+      <span>
+        <IconButton
+          onClick={toggle}
+          disabled={disabled}
+          aria-label={playing ? 'Pause forecast animation' : 'Play forecast animation'}
+          sx={{
+            bgcolor: 'primary.main',
+            color: 'primary.contrastText',
+            '&:hover': { bgcolor: 'primary.dark' },
+          }}
+          size="small"
+        >
+          {playing ? <PauseRounded /> : <PlayArrowRounded />}
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+}
 
-  const speedControl = (
+function SpeedControl() {
+  const speed = useUi((s) => s.playSpeed);
+  return (
     <ToggleButtonGroup
       size="small"
       exclusive
       value={speed}
-      onChange={(_, v: PlaySpeed | null) => v && setPlaySpeed(v)}
+      onChange={(_, v: PlaySpeed | null) => v && useUi.getState().setPlaySpeed(v)}
       aria-label="Playback speed"
       sx={{
         '& .MuiToggleButton-root': { px: 0.75, py: 0.25, fontFamily: 'inherit', fontSize: 12 },
@@ -178,6 +173,180 @@ export function TimelineBar({ heatmap, loading, error, onRetry, plan, anchorMs, 
       ))}
     </ToggleButtonGroup>
   );
+}
+
+function LayerControls({ compact }: { compact: boolean }) {
+  const layer = useUi((s) => s.heatLayer);
+  const visible = useUi((s) => s.heatVisible);
+  const { setHeatLayer, setHeatVisible } = useUi.getState();
+  return (
+    <>
+      <ToggleButtonGroup
+        size="small"
+        exclusive
+        value={layer}
+        onChange={(_, v: HeatLayer | null) => v && setHeatLayer(v)}
+        aria-label="Heatmap layer"
+      >
+        <ToggleButton value="wind" aria-label="Wind">
+          <AirRounded sx={{ fontSize: 16, mr: compact ? 0 : 0.5 }} />
+          {!compact && 'Wind'}
+        </ToggleButton>
+        <ToggleButton value="rain" aria-label="Rain">
+          <WaterDropOutlined sx={{ fontSize: 16, mr: compact ? 0 : 0.5 }} />
+          {!compact && 'Rain'}
+        </ToggleButton>
+        <ToggleButton value="snow" aria-label="Snow">
+          <AcUnitRounded sx={{ fontSize: 16, mr: compact ? 0 : 0.5 }} />
+          {!compact && 'Snow'}
+        </ToggleButton>
+      </ToggleButtonGroup>
+      <Tooltip title={visible ? 'Hide heatmap' : 'Show heatmap'}>
+        <IconButton
+          size="small"
+          onClick={() => setHeatVisible(!visible)}
+          aria-pressed={visible}
+          aria-label="Show weather heatmap"
+        >
+          {visible ? (
+            <VisibilityOutlined fontSize="small" />
+          ) : (
+            <VisibilityOffOutlined fontSize="small" />
+          )}
+        </IconButton>
+      </Tooltip>
+    </>
+  );
+}
+
+function LayerScale({ metric }: { metric: 'gust' | 'sustained' }) {
+  const layer = useUi((s) => s.heatLayer);
+  return <HeatScale layer={layer} metric={metric} />;
+}
+
+interface ScrubberProps {
+  plan: PlanResponse;
+  anchorMs: number;
+  maxHour: number;
+  disabled: boolean;
+  compact: boolean;
+  route: Route;
+  departureButton: ReactNode;
+}
+
+/**
+ * The only part of the bar that re-renders on every hour: readout, track and status. While
+ * dragging, the thumb follows the pointer immediately but the store (and so the map) updates at
+ * most once per animation frame.
+ */
+function HourScrubber({
+  plan,
+  anchorMs,
+  maxHour,
+  disabled,
+  compact,
+  route,
+  departureButton,
+}: ScrubberProps) {
+  const hour = useUi((s) => s.heatHour);
+  const { setHeatHour, setPlaying } = useUi.getState();
+  // Local value shown until the frame-throttled commit reaches the store (or the store moves).
+  const [dragHour, setDragHour] = useState<number | null>(null);
+  const [prevHour, setPrevHour] = useState(hour);
+  if (hour !== prevHour) {
+    setPrevHour(hour);
+    setDragHour(null);
+  }
+  const commitHour = useRafThrottle(setHeatHour);
+  const shownHour = dragHour ?? hour;
+  const at = sliderTimeMs(anchorMs, shownHour);
+
+  const tripStatus = useMemo(() => {
+    const dep = Date.parse(plan.meta.departure);
+    const arrivals = plan.routes.map((r) => Date.parse(r.arrival));
+    if (at < dep) return `Departs in ${Math.ceil((dep - at) / 3_600_000)} h`;
+    if (at > Math.max(...arrivals)) return 'All routes arrived';
+    return 'Trucks shown on map';
+  }, [plan, at]);
+
+  return (
+    <>
+      <Box sx={{ minWidth: compact ? 74 : 84 }}>
+        <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+          <Typography
+            variant="overline"
+            color="text.secondary"
+            component="div"
+            sx={{ lineHeight: 1.4 }}
+          >
+            {formatHourOffset(shownHour)}
+          </Typography>
+          <Tooltip title={HELP}>
+            <InfoOutlined
+              tabIndex={0}
+              aria-label={HELP}
+              sx={{ fontSize: 13, color: 'text.secondary', cursor: 'help' }}
+            />
+          </Tooltip>
+        </Stack>
+        <Typography variant="mono" component="div" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+          {formatSliderTime(new Date(at))}
+        </Typography>
+      </Box>
+
+      <Box sx={{ flex: 1, px: 1, minWidth: 120 }}>
+        <HazardTrack route={route} anchorMs={anchorMs} />
+        <Slider
+          value={shownHour}
+          min={0}
+          max={maxHour}
+          step={1}
+          marks={compact ? COMPACT_MARKS : MARKS}
+          onChange={(_, v) => {
+            setPlaying(false);
+            setDragHour(v as number);
+            commitHour(v as number);
+          }}
+          onChangeCommitted={(_, v) => {
+            // Keyboard steps also arrive here; the frame-throttled commit coalesces fast repeats.
+            commitHour(v as number);
+          }}
+          disabled={disabled}
+          size="small"
+          aria-label="Forecast hour"
+          aria-describedby="timeline-help"
+          getAriaValueText={(v) =>
+            `${formatHourOffset(v)}, ${formatSliderTime(new Date(sliderTimeMs(anchorMs, v)))}`
+          }
+          sx={{
+            '& .MuiSlider-markLabel': { fontSize: '0.625rem', top: 22 },
+            mb: compact ? 1 : 0.5,
+          }}
+        />
+        <Box component="span" id="timeline-help" sx={visuallyHidden}>
+          {HELP} Arrow keys step one hour; Home and End jump to the ends.
+        </Box>
+      </Box>
+
+      {!compact && (
+        <Stack sx={{ alignItems: 'flex-end', gap: 0.5, width: 132 }}>
+          {departureButton}
+          <Typography variant="caption" sx={{ textAlign: 'right' }} aria-live="polite">
+            {tripStatus}
+          </Typography>
+        </Stack>
+      )}
+    </>
+  );
+}
+
+export function TimelineBar({ heatmap, loading, error, onRetry, plan, anchorMs, compact }: Props) {
+  const selectedRouteId = useUi((s) => s.selectedRouteId);
+  const maxHour = heatmap?.hours ?? SLIDER_HOURS;
+  const route =
+    plan.routes.find((r) => r.id === selectedRouteId) ??
+    plan.routes.find((r) => r.id === plan.recommendation.routeId)!;
+  const depHour = departureHour(anchorMs, plan.meta.departure, maxHour);
 
   const departureButton = (
     <Tooltip
@@ -191,10 +360,20 @@ export function TimelineBar({ heatmap, loading, error, onRetry, plan, anchorMs, 
         <Button
           size="small"
           variant="outlined"
-          onClick={jumpToDeparture}
+          onClick={() => {
+            if (depHour === null) return;
+            useUi.getState().setPlaying(false);
+            useUi.getState().setHeatHour(depHour);
+          }}
           disabled={!heatmap || depHour === null}
           startIcon={<LocalShippingOutlined sx={{ fontSize: 16 }} />}
-          sx={{ whiteSpace: 'nowrap', minWidth: 0, px: compact ? 1 : 1.5 }}
+          sx={{
+            whiteSpace: 'nowrap',
+            minWidth: 0,
+            px: compact ? 1 : 1.5,
+            // Readable while disabled (e.g. during loading); the muted border marks it inactive.
+            '&.Mui-disabled': { color: 'text.secondary', borderColor: 'divider' },
+          }}
         >
           {compact ? 'Dep' : 'Departure'}
         </Button>
@@ -216,95 +395,17 @@ export function TimelineBar({ heatmap, loading, error, onRetry, plan, anchorMs, 
       }}
     >
       <Stack direction="row" sx={{ alignItems: 'center', gap: compact ? 1 : 1.5 }}>
-        <Tooltip title={playing ? 'Pause' : 'Play forecast'}>
-          <span>
-            <IconButton
-              onClick={togglePlay}
-              disabled={!heatmap}
-              aria-label={playing ? 'Pause forecast animation' : 'Play forecast animation'}
-              sx={{
-                bgcolor: 'primary.main',
-                color: 'primary.contrastText',
-                '&:hover': { bgcolor: 'primary.dark' },
-              }}
-              size="small"
-            >
-              {playing ? <PauseRounded /> : <PlayArrowRounded />}
-            </IconButton>
-          </span>
-        </Tooltip>
-        {!compact && speedControl}
-
-        <Box sx={{ minWidth: compact ? 74 : 84 }}>
-          <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
-            <Typography
-              variant="overline"
-              color="text.secondary"
-              component="div"
-              sx={{ lineHeight: 1.4 }}
-            >
-              {formatHourOffset(shownHour)}
-            </Typography>
-            <Tooltip title={HELP}>
-              <InfoOutlined
-                tabIndex={0}
-                aria-label={HELP}
-                sx={{ fontSize: 13, color: 'text.secondary', cursor: 'help' }}
-              />
-            </Tooltip>
-          </Stack>
-          <Typography
-            variant="mono"
-            component="div"
-            sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}
-            aria-live="off"
-          >
-            {formatSliderTime(new Date(at))}
-          </Typography>
-        </Box>
-
-        <Box sx={{ flex: 1, px: 1, minWidth: 120 }}>
-          <HazardTrack route={route} anchorMs={anchorMs} />
-          <Slider
-            value={shownHour}
-            min={0}
-            max={maxHour}
-            step={1}
-            marks={compact ? MARKS.filter((m) => m.value % 12 === 0) : MARKS}
-            onChange={(_, v) => {
-              setPlaying(false);
-              setDragHour(v as number);
-              commitHour(v as number);
-            }}
-            onChangeCommitted={(_, v) => {
-              setHeatHour(v as number);
-              setDragHour(null);
-            }}
-            disabled={!heatmap}
-            size="small"
-            aria-label="Forecast hour"
-            aria-describedby="timeline-help"
-            getAriaValueText={(v) =>
-              `${formatHourOffset(v)}, ${formatSliderTime(new Date(sliderTimeMs(anchorMs, v)))}`
-            }
-            sx={{
-              '& .MuiSlider-markLabel': { fontSize: '0.625rem', top: 22 },
-              mb: compact ? 1 : 0.5,
-            }}
-          />
-          <Box component="span" id="timeline-help" sx={visuallyHidden}>
-            {HELP} Arrow keys step one hour; Home and End jump to the ends.
-          </Box>
-        </Box>
-
-        {!compact && (
-          <Stack sx={{ alignItems: 'flex-end', gap: 0.5, width: 132 }}>
-            {departureButton}
-            <Typography variant="caption" sx={{ textAlign: 'right' }} aria-live="polite">
-              {tripStatus}
-            </Typography>
-          </Stack>
-        )}
+        <PlayButton maxHour={maxHour} disabled={!heatmap} />
+        {!compact && <SpeedControl />}
+        <HourScrubber
+          plan={plan}
+          anchorMs={anchorMs}
+          maxHour={maxHour}
+          disabled={!heatmap}
+          compact={compact}
+          route={route}
+          departureButton={departureButton}
+        />
       </Stack>
 
       <Stack
@@ -318,42 +419,9 @@ export function TimelineBar({ heatmap, loading, error, onRetry, plan, anchorMs, 
         }}
       >
         <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
-          {compact && speedControl}
+          {compact && <SpeedControl />}
           {compact && departureButton}
-          <ToggleButtonGroup
-            size="small"
-            exclusive
-            value={layer}
-            onChange={(_, v: HeatLayer | null) => v && setHeatLayer(v)}
-            aria-label="Heatmap layer"
-          >
-            <ToggleButton value="wind" aria-label="Wind">
-              <AirRounded sx={{ fontSize: 16, mr: compact ? 0 : 0.5 }} />
-              {!compact && 'Wind'}
-            </ToggleButton>
-            <ToggleButton value="rain" aria-label="Rain">
-              <WaterDropOutlined sx={{ fontSize: 16, mr: compact ? 0 : 0.5 }} />
-              {!compact && 'Rain'}
-            </ToggleButton>
-            <ToggleButton value="snow" aria-label="Snow">
-              <AcUnitRounded sx={{ fontSize: 16, mr: compact ? 0 : 0.5 }} />
-              {!compact && 'Snow'}
-            </ToggleButton>
-          </ToggleButtonGroup>
-          <Tooltip title={visible ? 'Hide heatmap' : 'Show heatmap'}>
-            <IconButton
-              size="small"
-              onClick={() => setHeatVisible(!visible)}
-              aria-pressed={visible}
-              aria-label="Show weather heatmap"
-            >
-              {visible ? (
-                <VisibilityOutlined fontSize="small" />
-              ) : (
-                <VisibilityOffOutlined fontSize="small" />
-              )}
-            </IconButton>
-          </Tooltip>
+          <LayerControls compact={compact} />
         </Stack>
 
         {!compact && (
@@ -362,7 +430,9 @@ export function TimelineBar({ heatmap, loading, error, onRetry, plan, anchorMs, 
           </Typography>
         )}
 
-        {loading && <Skeleton width={150} height={30} aria-label="Loading corridor forecast" />}
+        {loading && (
+          <Skeleton width={150} height={30} role="status" aria-label="Loading corridor forecast" />
+        )}
         {error && !loading && (
           <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
             <Typography variant="caption" color="error">
@@ -373,7 +443,7 @@ export function TimelineBar({ heatmap, loading, error, onRetry, plan, anchorMs, 
             </Button>
           </Stack>
         )}
-        {heatmap && !compact && <HeatScale layer={layer} metric={heatmap.windMetric} />}
+        {heatmap && !compact && <LayerScale metric={heatmap.windMetric} />}
       </Stack>
     </Paper>
   );

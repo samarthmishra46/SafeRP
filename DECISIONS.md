@@ -182,3 +182,100 @@ Judgment calls made where the brief was ambiguous, with the reasoning behind eac
   per-segment durations.
 - **The dev proxy target is configurable** (`API_PROXY_TARGET`, default `http://127.0.0.1:8000`), so a
   second dev stack can run beside the usual one.
+
+## Weather animations
+
+- **What is animated.** At the slider hour, each route checkpoint shows its dominant hazard, and
+  each corridor grid point shows the selected heatmap layer, but only where the level is Moderate
+  or higher. The selected route is drawn at full opacity, the others at 45%. Grid symbols appear
+  only while the heatmap is visible.
+- **Levels come from the backend, using the risk-table thresholds only, without load rules.**
+  The animations describe the weather at a place and time, not one truck's risk. Classifying in
+  Python (`core/domain/hazards.py`, reusing `wind_level`/`rain_level`/`snow_level`) keeps a single
+  implementation of the thresholds instead of a TypeScript copy.
+- **Compact encoding.** Each hour is one string with one digit per point per factor (e.g. `"0012"`).
+  Wind direction is rounded to 10°. For Dallas → Chicago, gzipped sizes grew as follows:
+
+  | Response | Before | After |
+  | --- | --- | --- |
+  | Plan, 10-mi interval (195 checkpoints) | 48.2 KB | 53.8 KB |
+  | Plan, 25-mi interval | 35.5 KB | 38.4 KB |
+  | Heatmap (361 points) | 26.5 KB | 39.0 KB |
+
+  Caching is unchanged (same TTLs and key scheme). The heatmap cache key is versioned (`heat2`) so
+  payloads cached in the old shape are never served.
+- **Plan and heatmap hours are aligned by their anchors.** The two can be fetched in different
+  UTC hours, so the frontend offsets the plan's hourly data by the difference.
+- **Dominant hazard:** the highest level wins. Ties go to snow, then rain, then wind, because
+  precipitation also cuts visibility and traction.
+- **Wind direction:** Open-Meteo reports where the wind comes FROM. The icon is drawn blowing east and
+  turned with `icon-rotate = from + 90` (map-aligned), so it points where the wind blows TO.
+- **Rendering:**
+  - Twelve animated images per theme (3 types × 4 levels), registered on demand through
+    MapLibre 6's `setMissingStyleImageResolver`, which also re-creates them in the new colours
+    after a theme change. In MapLibre 6 the `styleimagemissing` event can no longer supply images.
+  - Each is a `StyleImageInterface` whose `render()` redraws a 56 px canvas (28 px at 2×).
+  - Particle count and size grow with the level, and `icon-size` adds to that. Colours are the
+    risk palette with a thin dark outline, so yellow stays legible on the light basemap.
+  - Symbols are thinned by collision detection: higher levels are placed first via
+    `symbol-sort-key`, and route symbols have priority over grid symbols. They are also capped
+    at 120 route and 90 grid symbols.
+- **Frame pacing.** One `WeatherClock` per map advances a frame counter at 24 fps and calls
+  `triggerRepaint()` only when the counter advances. `render()` returns `true` only when it
+  actually redrew. The loop stops entirely when there are no hazard symbols, the tab is hidden,
+  the map is off screen (IntersectionObserver), animations are off, or reduced motion is
+  preferred. Under reduced motion the icons show a static frame.
+- **The toggle hides the weather symbols** rather than freezing them. "Off" should declutter the
+  map; reduced motion is the case for static icons. The choice is stored in `localStorage`
+  (`saferp:weather-animations`).
+- **The map button is a native MapLibre control** (via `useControl`), stacked under the zoom
+  buttons, with `aria-pressed` and a label that says what it will do.
+- **Legend glyphs** are drawn by the same `drawHazard` function as the map icons, so they always
+  match.
+
+## Performance check (slider + animations)
+
+Measured with Playwright driving Chrome on the machine's GPU (Intel Iris Xe via ANGLE/Vulkan,
+1440×900), Dallas → Chicago at a 10-mi interval. Hazards were injected at every checkpoint and grid
+point, so the symbol caps were always hit (worst case). Frame times come from a
+`requestAnimationFrame` recorder and long tasks from `PerformanceObserver`.
+
+**What profiling found, and what was fixed:**
+1. **The whole map re-rendered on every slider hour.** MapView and TimelineBar subscribed to the
+   hour, so each step re-rendered every Source/Layer (react-map-gl deep-compares their props) and the
+   whole bar. The hour-dependent parts now live in small subscriber components
+   (`map/HourLayers.tsx`, `HourScrubber`, `PlayButton`, `LayerControls`).
+2. **Pixel-array icon updates were premultiplied in JavaScript for every tile's icon atlas on
+   every frame.** This was the top self-time function while animating. The canvas is now handed to
+   the GPU through MapLibre's `StyleImageWebGLData.renderWithWebGL`: one `texSubImage2D` per atlas
+   slot, premultiplied by the driver, with no `getImageData`. `render()` still redraws the small
+   canvas only when the frame advances.
+3. **`formatSliderTime` built a new `Intl.DateTimeFormat` per call.** It is now cached. Keyboard
+   steps go through the same once-per-frame commit as dragging.
+
+**Results on the production build, before → after the fixes, animations on:**
+
+| Scenario | Frames > 50 ms | p95 frame time | Long tasks | CPU |
+| --- | --- | --- | --- | --- |
+| Playback at 4×, 48 h | 27 → **0** | 50 → 16.8 ms | 49 → **0** | 74 → 55% |
+| Mouse drag across the track | 2 → **0** (one 83 ms frame) | 16.8 ms | 2 → **0** | 38 → 39% |
+| Keyboard stress, a step every 40 ms (2 × 48 steps) | 88 → **2** | 83 → 33 ms | 98 → **0** | 100% |
+| Idle with icons animating | **0** | 16.8 ms (60 fps) | 0 | 25 → **13%** |
+
+The "before" column is from the development build, the only build profiled before the fixes.
+Like for like, the development build after the fixes measured: playback 0 frames over 50 ms,
+keyboard stress 17 frames over 50 ms (max 100 ms) with 9 long tasks, and idle 15% CPU. With
+animations off, the same idle measures 3% CPU. The remaining keyboard-stress spikes come from
+MapLibre re-laying out the symbol tiles for the new hour's sources; normal dragging and playback
+do not hit them.
+
+- **Pausing:** with the tab hidden, under reduced motion, or with animations toggled off, idle CPU
+  drops to 2–7%. The loop is stopped, not just skipped.
+- **Memory:** after a warm-up playback, 16 more play + scrub cycles left DOM nodes (804) and event
+  listeners (691) unchanged. The JS heap levelled off: 21.68 → 22.07 → 22.36 → 22.38 MB at cycles
+  4/8/12/16. Growth was the same with animations off (+1.36 MB vs +1.46 MB over 8 cycles), so it
+  is cache warm-up, not a leak.
+- **Network:** 0 requests during scrubbing, dragging, layer toggles and playback.
+- **Not covered:** software rendering. Under SwiftShader (no GPU), every repaint takes ~300 ms
+  with or without animations. A machine without GPU acceleration should switch the animations
+  off; they stay off once switched.

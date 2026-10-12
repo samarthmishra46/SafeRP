@@ -60,6 +60,7 @@ export function makeRoute(id: string, levels: RiskLevel[], overrides: Partial<Ro
     segments: cps.map((c) => ({ checkpointIndex: c.index, level: c.level, coords: [] })),
     checkpoints: cps,
     summary: { miles, avgRisk: 0, maxLevel: Math.max(...levels) as RiskLevel },
+    hourly: { wind: [], rain: [], snow: [], windDir: [] },
     ...overrides,
   };
 }
@@ -103,6 +104,8 @@ export function makePlan(): PlanResponse {
       weightLb: 36000,
       departure: '2026-01-15T12:00:00Z',
       bbox: [-97, 32, -96, 32],
+      hourlyAnchor: '2026-01-15T10:00:00Z',
+      hourlyHours: 48,
     },
   };
 }
@@ -121,5 +124,7 @@ export function makeHeatmap(anchorIso: string): HeatmapResponse {
     wind: empty(),
     rain: empty(),
     snow: empty(),
+    levels: { wind: [], rain: [], snow: [] },
+    windDir: empty(),
   };
 }

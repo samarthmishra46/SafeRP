@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from core.domain.geo import meters_to_miles, slice_polyline
+from core.domain.hazards import HazardRow
 from core.domain.ranking import rank_key
 from core.domain.risk import RiskLevel
 from core.services.planner import PlannedRoute, PlanResult
@@ -32,6 +33,16 @@ def _mi(meters: float, digits: int = 2) -> float:
 
 def _r(value: float | None, digits: int) -> float | None:
     return None if value is None else round(value, digits)
+
+
+def _hourly(rows: list[HazardRow]) -> dict:
+    """Per slider hour: one digit per checkpoint for each factor, plus wind direction."""
+    return {
+        "wind": [r.wind for r in rows],
+        "rain": [r.rain for r in rows],
+        "snow": [r.snow for r in rows],
+        "windDir": [r.wind_dir for r in rows],
+    }
 
 
 def _route(route: PlannedRoute, ev, departure: datetime, rank_position: int) -> dict:
@@ -116,7 +127,7 @@ def present_plan(result: PlanResult) -> dict:
     req = result.request
     positions = {route_index: pos for pos, route_index in enumerate(ev.order)}
     routes = [
-        _route(r, e, req.departure, positions[i])
+        {**_route(r, e, req.departure, positions[i]), "hourly": _hourly(result.hourly[i])}
         for i, (r, e) in enumerate(zip(result.routes, ev.routes, strict=True))
     ]
     ranking = []
@@ -157,5 +168,7 @@ def present_plan(result: PlanResult) -> dict:
             "weightLb": req.weight_lb,
             "departure": iso(req.departure),
             "bbox": _bbox(result.routes),
+            "hourlyAnchor": iso(result.hourly_anchor),
+            "hourlyHours": len(result.hourly[0]) - 1 if result.hourly else 0,
         },
     }

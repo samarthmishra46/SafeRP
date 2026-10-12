@@ -63,6 +63,15 @@ export interface Route {
   segments: Segment[];
   checkpoints: Checkpoint[];
   summary: { miles: MilesByLevel; avgRisk: number; maxLevel: RiskLevel };
+  /** Per slider hour: one level digit per checkpoint per factor, plus wind direction (FROM). */
+  hourly: HourlyHazards;
+}
+
+export interface HourlyHazards {
+  wind: string[];
+  rain: string[];
+  snow: string[];
+  windDir: (number | null)[][];
 }
 
 export interface RankingRow {
@@ -94,6 +103,9 @@ export interface PlanResponse {
     weightLb: number;
     departure: string;
     bbox: [number, number, number, number];
+    /** Hour 0 of `routes[].hourly` (a whole UTC hour). */
+    hourlyAnchor: string;
+    hourlyHours: number;
   };
 }
 
@@ -117,4 +129,8 @@ export interface HeatmapResponse {
   wind: (number | null)[][];
   rain: (number | null)[][];
   snow: (number | null)[][];
+  /** Per hour: one level digit (table thresholds) per grid point for each layer. */
+  levels: Record<HeatLayer, string[]>;
+  /** Per hour, per point: wind direction in degrees (where it blows FROM), rounded to 10. */
+  windDir: (number | null)[][];
 }

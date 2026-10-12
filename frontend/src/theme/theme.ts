@@ -138,6 +138,11 @@ export function createAppTheme(mode: PaletteMode) {
           },
           '.maplibregl-ctrl-group button + button': { borderTopColor: `${t.divider} !important` },
           '.maplibregl-ctrl-icon': { filter: mode === 'dark' ? 'invert(1)' : 'none' },
+          '.saferp-anim-ctrl button': {
+            color: t.text,
+            display: 'grid',
+            placeItems: 'center',
+          },
           '.maplibregl-ctrl-attrib': {
             background: `${alpha(t.panel, 0.8)} !important`,
             color: t.textSecondary,

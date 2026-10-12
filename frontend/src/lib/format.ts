@@ -86,8 +86,15 @@ export function joinFactors(factors: string[]): string {
 }
 
 /** Slider label: weekday and 24-hour local time, e.g. "Tue 14:00". */
+const weekdayFormats = new Map<string | undefined, Intl.DateTimeFormat>();
+
 export function formatSliderTime(date: Date, locale?: string): string {
-  const weekday = new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date);
+  let fmt = weekdayFormats.get(locale);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat(locale, { weekday: 'short' });
+    weekdayFormats.set(locale, fmt);
+  }
+  const weekday = fmt.format(date);
   const hh = String(date.getHours()).padStart(2, '0');
   const mm = String(date.getMinutes()).padStart(2, '0');
   return `${weekday} ${hh}:${mm}`;

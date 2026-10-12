@@ -1,5 +1,5 @@
 import type { PaletteMode } from '@mui/material';
-import type { ExpressionSpecification } from 'maplibre-gl';
+import type { ExpressionSpecification, SymbolLayerSpecification } from 'maplibre-gl';
 import type { LayerProps } from 'react-map-gl/maplibre';
 import type { HeatLayer } from '../api/types';
 import { RISK_CODE, riskPalette } from '../theme/risk';
@@ -187,4 +187,64 @@ export function heatLayerProps(
       'circle-pitch-alignment': 'map',
     },
   };
+}
+
+/**
+ * Animated weather symbols. Icons come from `weatherAnimation.ts` (one animated image per type,
+ * level and theme); size grows with level, wind turns to its downwind bearing, and collision
+ * detection thins them out so the map never looks cluttered.
+ */
+export function weatherLayers(mode: PaletteMode, gridVisible: boolean, routeVisible: boolean) {
+  const image: ExpressionSpecification = [
+    'concat',
+    'wx-',
+    ['get', 'type'],
+    '-',
+    ['to-string', ['get', 'level']],
+    `-${mode}`,
+  ];
+  const size = (scale: number): ExpressionSpecification => [
+    'match',
+    ['get', 'level'],
+    1,
+    0.8 * scale,
+    2,
+    0.95 * scale,
+    3,
+    1.1 * scale,
+    1.25 * scale,
+  ];
+  const common: SymbolLayerSpecification['layout'] = {
+    'icon-image': image,
+    'icon-rotate': ['get', 'rot'],
+    'icon-rotation-alignment': 'map',
+    'icon-allow-overlap': false,
+    // Higher levels are placed first and win collisions.
+    'symbol-sort-key': ['-', 4, ['get', 'level']],
+  };
+  const grid: LayerProps = {
+    id: 'wx-grid',
+    type: 'symbol',
+    layout: {
+      ...common,
+      'icon-size': size(1),
+      'icon-padding': 10,
+      visibility: gridVisible ? 'visible' : 'none',
+    },
+    paint: { 'icon-opacity': 0.9 },
+  };
+  const route: LayerProps = {
+    id: 'wx-route',
+    type: 'symbol',
+    layout: {
+      ...common,
+      'icon-size': size(1),
+      'icon-padding': 2,
+      // Sit just above the checkpoint marker rather than on it.
+      'icon-offset': [0, -14],
+      visibility: routeVisible ? 'visible' : 'none',
+    },
+    paint: { 'icon-opacity': ['case', ['get', 'selected'], 1, 0.45] },
+  };
+  return { grid, route };
 }

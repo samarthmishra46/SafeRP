@@ -1,4 +1,4 @@
-# Loom walkthrough (≈8 minutes)
+# Loom walkthrough (≈8–9 minutes)
 
 Have open beforehand: the deployed app (or `npm run dev` + `runserver`), `backend/core/domain/risk.py`,
 `backend/core/domain/evaluate.py`, `backend/tests/test_risk.py`, and DECISIONS.md.
@@ -41,7 +41,25 @@ Have open beforehand: the deployed app (or `npm run dev` + `runserver`), `backen
   requests (open DevTools → Network to show it).
 - Switch to dark mode with the header toggle.
 
-## 4:45 – 6:30 · The logic (code)
+## 4:45 – 5:45 · Forecast slider and weather animations
+
+- With a plan loaded, click **Departure**. The slider jumps to the departure hour and the trucks
+  appear at the origin. Point at the thin **hazard timeline** above the track: each hour is
+  coloured by the worst risk the truck on the selected route meets, and the Dep/Arr ticks bracket
+  the trip.
+- Press **Play** at **2×**. Narrate: rain streaks, drifting snow and downwind wind streaks appear and
+  fade along the routes and across the corridor as the hours pass, in the same risk colours, and
+  bigger and denser at higher levels. The selected route is full strength; the others are dimmed.
+- Switch the heatmap layer to Rain, then Snow; the corridor animations follow the layer.
+- Hover the ⓘ next to the time: the slider explores weather only, and the route risk and
+  recommendation always use each checkpoint's ETA forecast.
+- Keyboard: focus the slider and use the arrows and Home/End. Then click the cloud button under
+  the zoom controls to switch animations off, and reload to show the choice is remembered.
+- One line on performance: one animated image per hazard type and level, drawn on a small canvas
+  at 24 fps and handed to the GPU. The loop sleeps when the tab is hidden or nothing is animating,
+  and the Network tab stays empty while scrubbing.
+
+## 5:45 – 7:00 · The logic (code)
 
 - `risk.py`: half-open thresholds, the >=55 vs >1.00 / >3.0 asymmetry, load rules, and
   max-of-factors with reported drivers.
@@ -56,7 +74,7 @@ Have open beforehand: the deployed app (or `npm run dev` + `runserver`), `backen
 - Show the **No Travel banner** with its **Use N h later** button (if no live storm is available,
   explain it from the test `test_plan_storm_marks_not_recommended_and_suggests_departure`).
 
-## 6:30 – 7:30 · Engineering choices
+## 7:00 – 7:45 · Engineering choices
 
 - Domain layer is pure (a test fails if it imports Django or does I/O); services do I/O in a thread
   pool with a shared session (timeouts, one retry) and per-point weather caching (2-decimal
@@ -65,7 +83,7 @@ Have open beforehand: the deployed app (or `npm run dev` + `runserver`), `backen
 - Frontend: TanStack Query, memoised layers, in-place GeoJSON updates, code-split map, axe check at
   0 violations.
 
-## 7:30 – 8:00 · Wrap up
+## 7:45 – 8:15 · Wrap up
 
 - Limitations: car-based durations, weather only sampled at checkpoints, 7-day horizon,
   Open-Meteo free-tier rate limits.

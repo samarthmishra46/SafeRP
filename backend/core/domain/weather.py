@@ -119,6 +119,7 @@ class Frame:
     wind_mph: float | None
     rain_in: float | None
     snow_in: float | None
+    wind_direction_deg: float | None = None  # meteorological: where the wind blows FROM
 
 
 def hourly_frame(series: HourlySeries, anchor: datetime, hour: int, wind_metric: str) -> Frame:
@@ -130,10 +131,11 @@ def hourly_frame(series: HourlySeries, anchor: datetime, hour: int, wind_metric:
     base = round(series.index_of(anchor))
     bucket, instant = base + hour + 1, base + hour
     if not (instant >= 0 and bucket < series.length):
-        return Frame(None, None, None)
+        return Frame(None, None, None, None)
     wind = series.wind_gust[bucket] if wind_metric == "gust" else series.wind_speed[instant]
     return Frame(
         wind_mph=wind,
         rain_in=combine_rain(series.rain[bucket], series.showers[bucket]),
         snow_in=series.snowfall[bucket],
+        wind_direction_deg=series.wind_direction[instant],
     )

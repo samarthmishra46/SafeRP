@@ -6,7 +6,41 @@ reaches each checkpoint, scores every stretch of road against fixed risk rules, 
 route with a plain-language reason. A map shows the routes, per-segment risk and a 0–48 h weather
 heatmap with a time slider and moving truck markers.
 
+## Screenshots
+
 ![SafeRP planning Dallas to Chicago with the wind heatmap](docs/screenshot.png)
+
+![Forecast slider with hazard timeline and weather animations](docs/slider-animations.png)
+
+*Second image: forecast slider at the departure hour, with the hazard timeline above the track
+and animated rain, snow and wind along Route A and across the corridor. The weather was calm on
+the day of capture, so the risk levels and hazards in this image were injected into the API
+responses for illustration.*
+
+## Features
+
+- **Three route options** for a truck of the given weight, with checkpoints every 10, 25 or 50 mi.
+- **Risk at the moment the truck arrives:** each checkpoint is scored on the forecast for its ETA,
+  then routes are ranked and one is recommended with a plain-language reason. If the trip is
+  unsafe, the nearest later departure that is safe is suggested.
+- **Route cards and risk strip:** miles per risk level and a start-to-finish strip linked to
+  the map (hover, arrow keys, Enter for details).
+- **Forecast slider (0–48 h):**
+  - The label shows "Tue 14:00 · +N h".
+  - Play/pause at 1×, 2× or 4×; arrow keys and Home/End work.
+  - A **Departure** button, departure and arrival markers on the track, and a thin **hazard
+    timeline** colouring each hour by the worst risk the truck meets on the selected route.
+  - Truck markers show where each truck would be at the slider time.
+  - Scrubbing never makes a network request. The slider explores the weather; it never changes
+    risk or the recommendation.
+- **Corridor heatmap** for wind, rain or snow, coloured at the risk thresholds.
+- **Weather animations:**
+  - Falling rain streaks, drifting snow, and wind streaks pointing downwind appear wherever the
+    forecast at the slider hour reaches Moderate or worse, both along the routes and across the
+    corridor.
+  - They are drawn in the risk colours and grow with the level.
+  - They are rendered by MapLibre as animated icons (capped at 24 fps, paused when hidden),
+    respect reduced motion, and can be switched off with the map button (remembered).
 
 - **Backend:** Django 5.2 + Django REST Framework, stateless, Redis or in-memory cache
 - **Frontend:** React 19 + TypeScript + Vite, Material UI 9, MapLibre GL via react-map-gl, TanStack Query
@@ -101,13 +135,17 @@ cd backend  && uv run pytest && uv run ruff check . && uv run ruff format --chec
 cd frontend && npm test && npm run lint && npm run typecheck && npm run format:check
 ```
 
-- **Backend:** 137 pytest cases. They include every threshold edge
+- **Backend:** 143 pytest cases. They include every threshold edge
   (24.9/25/34.9/35/44.9/45/54.9/55; 0.09/0.10/0.25/0.50/1.00/1.01; 0.49/0.5/1.0/2.0/3.0/3.01), every
   load rule at 30,000/30,001/40,000/40,001 lb, mile attribution, ETA interpolation, ranking
   including ties, and API tests against recorded Mapbox/Open-Meteo responses
-  (`tests/fixtures`, re-recordable with `uv run python scripts/record_fixtures.py`).
-- **Frontend:** 31 Vitest cases covering formatting, geometry, form validation, route cards, the
-  risk strip's keyboard model, the results panel and the No Travel banner.
+  (`tests/fixtures`, re-recordable with `uv run python scripts/record_fixtures.py`), plus the hourly
+  hazard levels behind the animations.
+- **Frontend:** 59 Vitest cases. They cover formatting, geometry, form validation, route cards, the
+  risk strip's keyboard model, the results panel and the No Travel banner. They also cover the
+  slider: truck position at an hour, the worst-level hazard timeline, departure jump, speeds, and
+  keyboard. And the animations: dominant hazard, the Moderate-or-higher filter, wind rotation,
+  and the frame-capped, pausable animation clock.
 
 ## Configuration
 
@@ -144,7 +182,7 @@ names the service; never a stack trace). Responses are gzip-compressed.
 | `GET /api/health` | Liveness and whether a Mapbox token is configured |
 | `GET /api/geocode?q=dal&proximity=lon,lat` | Place autocomplete (`results[]`: id, name, label, lon, lat) |
 | `POST /api/plan` | Routes, checkpoints, summaries and recommendation (below) |
-| `GET /api/heatmap?bbox=minLon,minLat,maxLon,maxLat` | Corridor grid: `points` once, then `wind`/`rain`/`snow` arrays per hour (49 frames) |
+| `GET /api/heatmap?bbox=minLon,minLat,maxLon,maxLat` | Corridor grid: `points` once, then per hour (49 frames) `wind`/`rain`/`snow` values, `levels.{wind,rain,snow}` (one level digit per point) and `windDir` |
 
 ```jsonc
 // POST /api/plan
@@ -156,13 +194,19 @@ names the service; never a stack trace). Responses are gzip-compressed.
   "intervalMi": 25            // 10 | 25 | 50
 }
 // → { routes: [{ id, name, via, rank, distanceMi, durationS, departure, arrival,
-//               geometry, cumDurationS, segments[], checkpoints[], summary }],
+//               geometry, cumDurationS, segments[], checkpoints[], summary,
+//               hourly: { wind[], rain[], snow[], windDir[] } }],
 //     recommendation: { routeId, reason, notRecommended, suggestion, ranking[] },
-//     notices: [], meta: { windMetric, intervalMi, weightLb, departure, bbox } }
+//     notices: [], meta: { windMetric, intervalMi, weightLb, departure, bbox,
+//                          hourlyAnchor, hourlyHours } }
 ```
 
 Each checkpoint carries its ETA, sustained wind, gusts, direction, rain, snow, temperature, level,
 per-factor levels, the factor(s) that drove the level and any load rule that fired.
+
+`routes[].hourly` feeds the slider's animations only. Each entry is one string per slider hour
+with one level digit per checkpoint (e.g. `"0012"`), from the risk-table thresholds without load
+rules, plus wind direction in degrees. It never affects risk or ranking.
 
 ## Why these APIs
 

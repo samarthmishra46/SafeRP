@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useUi } from '../state/uiStore';
 import { makeHeatmap, makePlan } from '../test/fixtures';
@@ -29,13 +29,13 @@ describe('TimelineBar', () => {
     const slider = setup();
     slider.focus();
     await userEvent.keyboard('{ArrowRight}{ArrowRight}');
-    expect(useUi.getState().heatHour).toBe(2);
+    await waitFor(() => expect(useUi.getState().heatHour).toBe(2)); // committed next frame
     await userEvent.keyboard('{ArrowLeft}');
-    expect(useUi.getState().heatHour).toBe(1);
+    await waitFor(() => expect(useUi.getState().heatHour).toBe(1)); // committed next frame
     await userEvent.keyboard('{End}');
-    expect(useUi.getState().heatHour).toBe(48);
+    await waitFor(() => expect(useUi.getState().heatHour).toBe(48)); // committed next frame
     await userEvent.keyboard('{Home}');
-    expect(useUi.getState().heatHour).toBe(0);
+    await waitFor(() => expect(useUi.getState().heatHour).toBe(0)); // committed next frame
     // Local time: a whole UTC hour need not be :00 locally (e.g. UTC+5:30).
     expect(slider).toHaveAttribute(
       'aria-valuetext',

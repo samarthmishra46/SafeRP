@@ -285,3 +285,39 @@ def test_heatmap_bad_bbox(bbox):
 def test_unknown_method_is_json_error():
     r = client.delete("/api/plan")
     assert_error(r, 405)
+
+
+# --- hourly hazard data for the slider animations -----------------------------------------
+
+
+def test_plan_includes_hourly_hazard_levels_per_checkpoint(upstreams):
+    def gusty(i, field, value):
+        if field == "wind_gusts_10m":
+            return 47.0  # Severe by the table, regardless of load
+        if field == "wind_direction_10m":
+            return 270.0
+        return value
+
+    upstreams.weather_override = gusty
+    data = plan(weightLb=20_000).json()
+    assert data["meta"]["hourlyHours"] == 48
+    assert data["meta"]["hourlyAnchor"].endswith(":00:00Z")
+    for route in data["routes"]:
+        hourly = route["hourly"]
+        n = len(route["checkpoints"])
+        for field in ("wind", "rain", "snow", "windDir"):
+            assert len(hourly[field]) == 49
+            assert all(len(row) == n for row in hourly[field])
+        assert hourly["wind"][0] == "3" * n
+        assert hourly["windDir"][0] == [270] * n
+
+
+def test_heatmap_includes_levels_and_wind_direction(upstreams):
+    data = client.get("/api/heatmap", {"bbox": "-97.4,32.7,-96.7,32.9"}).json()
+    n = len(data["points"])
+    for field in ("wind", "rain", "snow"):
+        assert len(data["levels"][field]) == 49
+        assert all(len(row) == n and set(row) <= set("01234") for row in data["levels"][field])
+    assert len(data["windDir"]) == 49
+    assert all(len(row) == n for row in data["windDir"])
+    assert all(d is None or (0 <= d < 360 and d % 10 == 0) for d in data["windDir"][0])

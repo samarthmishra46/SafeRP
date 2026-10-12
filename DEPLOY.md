@@ -168,6 +168,12 @@ Frontend: `VITE_API_BASE_URL`.
   your Mapbox account. In Render → saferp-api → **Environment**, edit `MAPBOX_ACCESS_TOKEN`, paste
   the exact `pk.…` value that works locally (from `backend/.env`, the part after `=`), and save.
   Render redeploys; then try `https://<render-url>/api/geocode?q=dallas`.
+
+  To see what the server actually loaded, open `https://<render-url>/api/health?check=mapbox`
+  (rate-limited). It shows `tokenLength`, `rawLength` (before stripping spaces and quotes), a
+  12-character `fingerprint`, and Mapbox's verdict (`mapboxCode`: `TokenValid`, `TokenInvalid`,
+  ...). The token itself is never shown. Compare the fingerprint with your local one:
+  `cd backend && uv run python manage.py shell -c "from core.services.geocoding import token_diagnostics as t; print(t(True))"`.
 - **Every search or plan takes 15+ seconds on Render.** Add `HTTP_FORCE_IPV4` = `true` in Render →
   Environment. It's in `render.yaml`, but a service created by hand needs it added manually.
 - **400 "Bad Request" from the API on a custom domain.** Add that domain to

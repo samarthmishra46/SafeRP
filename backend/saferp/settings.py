@@ -135,6 +135,7 @@ def clean_token(raw: str, name: str = "MAPBOX_ACCESS_TOKEN") -> str:
     return token
 
 
+MAPBOX_ACCESS_TOKEN_RAW_LENGTH = len(os.environ.get("MAPBOX_ACCESS_TOKEN", ""))  # for diagnostics
 MAPBOX_ACCESS_TOKEN = clean_token(os.environ.get("MAPBOX_ACCESS_TOKEN", ""))
 OPEN_METEO_URL = os.environ.get("OPEN_METEO_URL", "https://api.open-meteo.com/v1/forecast")
 MAPBOX_API_URL = os.environ.get("MAPBOX_API_URL", "https://api.mapbox.com")

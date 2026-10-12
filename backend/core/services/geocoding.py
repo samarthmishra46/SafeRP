@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import time
+
 from django.conf import settings
 
 from core.errors import UpstreamError
@@ -80,3 +83,26 @@ def search(
     places = [p for p in (_to_place(f) for f in body.get("features", [])) if p]
     cache.put(key, places, TTL_SECONDS)
     return places
+
+
+def token_diagnostics(check: bool) -> dict:
+    """What the server sees, without revealing the token: lengths, a short fingerprint and,
+    if asked, Mapbox's own verdict from the Tokens API (TokenValid, TokenInvalid, ...)."""
+    token = settings.MAPBOX_ACCESS_TOKEN
+    info: dict = {
+        "tokenLength": len(token),
+        "rawLength": settings.MAPBOX_ACCESS_TOKEN_RAW_LENGTH,
+        "fingerprint": hashlib.sha256(token.encode()).hexdigest()[:12] if token else None,
+    }
+    if check and token:
+        started = time.monotonic()
+        try:
+            status, body = get_json(
+                SERVICE, f"{settings.MAPBOX_API_URL}/tokens/v2", {"access_token": token}
+            )
+            info["mapboxStatus"] = status
+            info["mapboxCode"] = body.get("code") if isinstance(body, dict) else None
+        except UpstreamError as exc:
+            info["mapboxError"] = exc.message
+        info["checkMs"] = round((time.monotonic() - started) * 1000)
+    return info

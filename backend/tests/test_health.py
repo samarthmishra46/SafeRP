@@ -26,3 +26,28 @@ def test_health_reports_malformed_token(settings):
     assert Client().get("/api/health").json()["mapboxConfigured"] is False
     settings.MAPBOX_ACCESS_TOKEN = "pk.eyJ1Ijoi.abc-123_x"
     assert Client().get("/api/health").json()["mapboxConfigured"] is True
+
+
+def test_health_mapbox_check_reports_without_revealing_token(settings):
+    import re as _re
+
+    import responses
+
+    settings.MAPBOX_ACCESS_TOKEN = "pk.secret-token"
+    settings.MAPBOX_ACCESS_TOKEN_RAW_LENGTH = 16  # e.g. pasted with a trailing newline
+    with responses.RequestsMock() as rsps:
+        rsps.add(
+            responses.GET,
+            _re.compile(r"https://api\.mapbox\.com/tokens/v2.*"),
+            json={"code": "TokenValid"},
+        )
+        body = Client().get("/api/health", {"check": "mapbox"}).json()
+    info = body["mapbox"]
+    assert info["tokenLength"] == 15 and info["rawLength"] == 16
+    assert info["mapboxCode"] == "TokenValid" and info["mapboxStatus"] == 200
+    assert len(info["fingerprint"]) == 12
+    assert "pk.secret-token" not in str(body)
+
+
+def test_plain_health_does_not_call_mapbox():
+    assert "mapbox" not in Client().get("/api/health").json()

@@ -2,6 +2,7 @@ import re
 
 from django.conf import settings
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from core.services import geocoding, heatmap, planner
@@ -16,20 +17,29 @@ from .serializers import (
 
 
 class HealthView(APIView):
-    throttle_classes = []
+    """Liveness for uptime pings. `?check=mapbox` adds token diagnostics (rate-limited, since it
+    calls Mapbox); the token itself is never returned."""
+
+    def get_throttles(self):
+        if self.request.query_params.get("check"):
+            self.throttle_scope = "geocode"
+            return [ScopedRateThrottle()]
+        return []
 
     def get(self, request):
-        return Response(
-            {
-                "status": "ok",
-                # True only when the value looks like a Mapbox token (pk./sk./tk.); a token can
-                # still be rejected by Mapbox if it is revoked or belongs to another account.
-                "mapboxConfigured": bool(
-                    re.fullmatch(r"(pk|sk|tk)\.[A-Za-z0-9_.-]+", settings.MAPBOX_ACCESS_TOKEN)
-                ),
-                "windMetric": settings.WIND_METRIC,
-            }
-        )
+        body = {
+            "status": "ok",
+            # True only when the value looks like a Mapbox token (pk./sk./tk.); a token can
+            # still be rejected by Mapbox if it is revoked or belongs to another account.
+            "mapboxConfigured": bool(
+                re.fullmatch(r"(pk|sk|tk)\.[A-Za-z0-9_.-]+", settings.MAPBOX_ACCESS_TOKEN)
+            ),
+            "windMetric": settings.WIND_METRIC,
+            "httpForceIpv4": settings.HTTP_FORCE_IPV4,
+        }
+        if request.query_params.get("check") == "mapbox":
+            body["mapbox"] = geocoding.token_diagnostics(check=True)
+        return Response(body)
 
 
 class GeocodeView(APIView):

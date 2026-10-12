@@ -64,7 +64,9 @@ export function Results({ plan, onUseDeparture }: Props) {
       <WhyThisRoute recommendation={rec} routes={plan.routes} />
       <Typography variant="caption" component="p">
         Risk uses wind {plan.meta.windMetric === 'gust' ? 'gusts' : 'sustained speed'}, rain and
-        snow at each checkpoint&apos;s ETA. Forecast data: Open-Meteo. Routing: Mapbox.
+        snow at each checkpoint&apos;s ETA. Forecast data:{' '}
+        {plan.meta.weatherProvider === 'pirate-weather' ? 'Pirate Weather' : 'Open-Meteo'}. Routing:
+        Mapbox.
       </Typography>
     </Stack>
   );

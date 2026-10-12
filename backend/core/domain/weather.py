@@ -114,6 +114,61 @@ def parse_open_meteo_location(payload: dict) -> HourlySeries:
     )
 
 
+def parse_pirate_weather(payload: dict) -> HourlySeries:
+    """Build a series from a Pirate Weather response (units=us, extend=hourly, version=2).
+
+    Pirate Weather's hourly point at `time` describes the hour *starting* then: rates and gusts
+    for [t, t+1h) and instantaneous-style values at t. In this module's convention a bucket is
+    stamped with the hour it ends at, so rates and gusts move one slot later; the first bucket
+    (the hour before the data starts) is unknown. Units: inches/hour, mph; °F becomes °C.
+    Freezing rain (`iceIntensity`) counts as rain: it is liquid precipitation on the road.
+    """
+    points = payload["hourly"]["data"]
+    start = datetime.fromtimestamp(points[0]["time"], UTC)
+
+    def get(p: dict, key: str) -> float | None:
+        value = p.get(key)
+        return None if value is None else float(value)
+
+    def rain(p: dict) -> float | None:
+        if "rainIntensity" in p or "iceIntensity" in p:
+            return (get(p, "rainIntensity") or 0.0) + (get(p, "iceIntensity") or 0.0)
+        # Older responses: one liquid-equivalent intensity plus a type.
+        if p.get("precipType") in ("rain", "sleet"):
+            return get(p, "precipIntensity")
+        return 0.0 if p.get("precipType") in ("snow", "none", None) else None
+
+    def snow(p: dict) -> float | None:
+        if "snowIntensity" in p:
+            return get(p, "snowIntensity")
+        if p.get("precipType") == "snow" and p.get("precipIntensity") is not None:
+            return float(p["precipIntensity"]) * 10  # ~10:1 snow-to-liquid ratio
+        return 0.0
+
+    def celsius(p: dict) -> float | None:
+        f = get(p, "temperature")
+        return None if f is None else round((f - 32) * 5 / 9, 2)
+
+    # Instants at index k (length n + 1, last unknown); buckets shifted to index k + 1.
+    def instants(fn) -> list[float | None]:
+        return [fn(p) for p in points] + [None]
+
+    def buckets(fn) -> list[float | None]:
+        return [None] + [fn(p) for p in points]
+
+    return HourlySeries(
+        start=start,
+        wind_speed=instants(lambda p: get(p, "windSpeed")),
+        wind_gust=buckets(lambda p: get(p, "windGust")),
+        # Treated like Dark Sky's windBearing: where the wind comes from.
+        wind_direction=instants(lambda p: get(p, "windBearing")),
+        rain=buckets(rain),
+        showers=buckets(lambda p: 0.0),  # already included in rain
+        snowfall=buckets(snow),
+        temperature=instants(celsius),
+    )
+
+
 @dataclass(frozen=True)
 class Frame:
     wind_mph: float | None

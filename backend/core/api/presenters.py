@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from django.conf import settings
+
 from core.domain.geo import interpolate_at_elapsed, meters_to_miles, slice_polyline
 from core.domain.hazards import HazardRow
 from core.domain.ranking import rank_key
@@ -203,6 +205,7 @@ def present_plan(result: PlanResult) -> dict:
         "meta": {
             "generatedAt": iso(result.generated_at),
             "windMetric": result.wind_metric,
+            "weatherProvider": settings.WEATHER_PROVIDER,
             "intervalMi": req.interval_mi,
             "weightLb": req.weight_lb,
             "departure": iso(req.departure),

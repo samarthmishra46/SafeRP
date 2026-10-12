@@ -36,6 +36,7 @@ class HealthView(APIView):
             ),
             "windMetric": settings.WIND_METRIC,
             "httpForceIpv4": settings.HTTP_FORCE_IPV4,
+            "weatherProvider": settings.WEATHER_PROVIDER,
         }
         if request.query_params.get("check") == "mapbox":
             body["mapbox"] = geocoding.token_diagnostics(check=True)

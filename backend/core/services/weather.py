@@ -9,7 +9,12 @@ from datetime import UTC, datetime
 from django.conf import settings
 
 from core.domain.evaluate import WeatherKey
-from core.domain.weather import HourlySeries, floor_hour, parse_open_meteo_location
+from core.domain.weather import (
+    HourlySeries,
+    floor_hour,
+    parse_open_meteo_location,
+    parse_pirate_weather,
+)
 from core.errors import UpstreamError
 
 from . import cache
@@ -35,7 +40,13 @@ HOURLY_VARS = (
 def _cache_key(run_hour: datetime, key: WeatherKey) -> str:
     # The run hour stands in for the forecast model run: keys roll over every hour and
     # entries expire after 30 minutes, so data is never more than ~30 minutes stale.
-    return cache.make_key("wx", run_hour.strftime("%Y%m%d%H"), f"{key[0]:.2f}", f"{key[1]:.2f}")
+    return cache.make_key(
+        "wx",
+        settings.WEATHER_PROVIDER,
+        run_hour.strftime("%Y%m%d%H"),
+        f"{key[0]:.2f}",
+        f"{key[1]:.2f}",
+    )
 
 
 def _fetch_chunk(keys: list[WeatherKey]) -> list[HourlySeries]:
@@ -74,6 +85,49 @@ def _fetch_chunk(keys: list[WeatherKey]) -> list[HourlySeries]:
         raise UpstreamError(SERVICE, "returned malformed forecast data") from exc
 
 
+PIRATE_SERVICE = "Pirate Weather"
+
+
+def _fetch_pirate(key: WeatherKey) -> HourlySeries:
+    """One location from Pirate Weather (no batching: every location is one API call)."""
+    if not settings.PIRATE_WEATHER_API_KEY:
+        raise UpstreamError(PIRATE_SERVICE, "the server has no PIRATE_WEATHER_API_KEY configured")
+    lat, lon = key
+    # The key goes in a header (Pirate Weather accepts a placeholder in the path), so it never
+    # appears in URLs or logs.
+    status, body = get_json(
+        PIRATE_SERVICE,
+        f"{settings.PIRATE_WEATHER_URL}/key/{lat:.2f},{lon:.2f}",
+        {
+            "units": "us",
+            "extend": "hourly",
+            "version": "2",
+            "exclude": "currently,minutely,daily,alerts",
+        },
+        headers={"apikey": settings.PIRATE_WEATHER_API_KEY},
+    )
+    if status in (401, 403):
+        raise UpstreamError(
+            PIRATE_SERVICE, "the API key was rejected (check PIRATE_WEATHER_API_KEY)"
+        )
+    if status == 429:
+        raise UpstreamError(PIRATE_SERVICE, "the API call quota is used up for now")
+    if status != 200 or not isinstance(body, dict):
+        message = body.get("message") if isinstance(body, dict) else None
+        raise UpstreamError(PIRATE_SERVICE, message or f"unexpected response (HTTP {status})")
+    try:
+        return parse_pirate_weather(body)
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        raise UpstreamError(PIRATE_SERVICE, "returned malformed forecast data") from exc
+
+
+def _fetch_missing(missing: list[WeatherKey]) -> list[HourlySeries]:
+    if settings.WEATHER_PROVIDER == "pirate-weather":
+        return list(executor.map(_fetch_pirate, missing))
+    chunks = [missing[i : i + CHUNK_SIZE] for i in range(0, len(missing), CHUNK_SIZE)]
+    return [series for chunk in executor.map(_fetch_chunk, chunks) for series in chunk]
+
+
 def fetch_forecasts(
     keys: Iterable[WeatherKey], now: datetime | None = None
 ) -> dict[WeatherKey, HourlySeries]:
@@ -92,12 +146,10 @@ def fetch_forecasts(
             missing.append(k)
 
     if missing:
-        chunks = [missing[i : i + CHUNK_SIZE] for i in range(0, len(missing), CHUNK_SIZE)]
         fresh: dict[str, HourlySeries] = {}
-        for chunk, series_list in zip(chunks, executor.map(_fetch_chunk, chunks), strict=True):
-            for k, series in zip(chunk, series_list, strict=True):
-                result[k] = series
-                fresh[cache_keys[k]] = series
+        for k, series in zip(missing, _fetch_missing(missing), strict=True):
+            result[k] = series
+            fresh[cache_keys[k]] = series
         cache.put_many(fresh, TTL_SECONDS)
     logger.info("forecasts: %d cached, %d fetched", len(unique) - len(missing), len(missing))
     return result

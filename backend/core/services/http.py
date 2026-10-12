@@ -47,10 +47,14 @@ session = _make_session()
 executor = ThreadPoolExecutor(max_workers=settings.UPSTREAM_WORKERS, thread_name_prefix="upstream")
 
 
-def get_json(service: str, url: str, params: dict) -> tuple[int, dict | list]:
+def get_json(
+    service: str, url: str, params: dict, headers: dict | None = None
+) -> tuple[int, dict | list]:
     """GET and decode JSON. Network failures become UpstreamError; HTTP errors are returned."""
     try:
-        response = session.get(url, params=params, timeout=settings.HTTP_TIMEOUT_SECONDS)
+        response = session.get(
+            url, params=params, headers=headers, timeout=settings.HTTP_TIMEOUT_SECONDS
+        )
     except requests.Timeout as exc:
         raise UpstreamError(service, "the request timed out") from exc
     except requests.RequestException as exc:

@@ -56,7 +56,7 @@ responses for illustration.*
 
 - **Backend:** Django 5.2 + Django REST Framework, stateless, Redis or in-memory cache
 - **Frontend:** React 19 + TypeScript + Vite, Material UI 9, MapLibre GL via react-map-gl, TanStack Query
-- **Data:** Mapbox Directions and Geocoding (routing, place search), Open-Meteo (forecasts), OpenFreeMap (base map)
+- **Data:** Mapbox Directions and Geocoding (routing, place search), Open-Meteo or Pirate Weather (forecasts, switchable), OpenFreeMap (base map)
 
 ## Architecture
 
@@ -147,7 +147,7 @@ cd backend  && uv run pytest && uv run ruff check . && uv run ruff format --chec
 cd frontend && npm test && npm run lint && npm run typecheck && npm run format:check
 ```
 
-- **Backend:** 165 pytest cases. They include every threshold edge
+- **Backend:** 176 pytest cases. They include every threshold edge
   (24.9/25/34.9/35/44.9/45/54.9/55; 0.09/0.10/0.25/0.50/1.00/1.01; 0.49/0.5/1.0/2.0/3.0/3.01), every
   load rule at 30,000/30,001/40,000/40,001 lb, mile attribution, ETA interpolation, ranking
   including ties, and API tests against recorded Mapbox/Open-Meteo responses
@@ -175,6 +175,7 @@ Backend (`backend/.env`, or platform environment variables):
 | `CORS_ALLOWED_ORIGIN_REGEXES` | — | e.g. preview deployments |
 | `REDIS_URL` (or `KV_URL`) | — | Shared cache; local memory when unset |
 | `WIND_METRIC` | `gust` | `gust` or `sustained` |
+| `WEATHER_PROVIDER` | `open-meteo` | `open-meteo` or `pirate-weather` (needs `PIRATE_WEATHER_API_KEY`) |
 | `TRUCK_SPEED_FACTOR` | `1.0` | 0.9 = truck 10% slower than Mapbox's estimate |
 | `FORECAST_HORIZON_HOURS` | `168` | Forecast fetched per point; trips must end inside it |
 | `MAX_WEATHER_POINTS` | `500` | Per-plan cap on forecast locations |

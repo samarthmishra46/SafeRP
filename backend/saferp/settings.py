@@ -152,8 +152,17 @@ TRUCK_SPEED_FACTOR = float(os.environ.get("TRUCK_SPEED_FACTOR", "1.0"))
 # Hours of forecast fetched per point (Open-Meteo default is 7 days).
 FORECAST_HORIZON_HOURS = int(os.environ.get("FORECAST_HORIZON_HOURS", "168"))
 # Upper bound on distinct weather locations per plan request (Open-Meteo weighs per location).
-MAX_WEATHER_POINTS = int(os.environ.get("MAX_WEATHER_POINTS", "500"))
-HEATMAP_MAX_POINTS = int(os.environ.get("HEATMAP_MAX_POINTS", "400"))
+# Forecast provider: "open-meteo" (default; batched, free per-IP quota) or "pirate-weather"
+# (needs PIRATE_WEATHER_API_KEY; one call per location, 10,000 calls/month on the free plan).
+WEATHER_PROVIDER = os.environ.get("WEATHER_PROVIDER", "open-meteo").strip().lower()
+PIRATE_WEATHER_API_KEY = clean_token(
+    os.environ.get("PIRATE_WEATHER_API_KEY", ""), "PIRATE_WEATHER_API_KEY"
+)
+PIRATE_WEATHER_URL = os.environ.get("PIRATE_WEATHER_URL", "https://api.pirateweather.net/forecast")
+_PIRATE = WEATHER_PROVIDER == "pirate-weather"
+# Per-plan and heatmap location budgets; smaller defaults when every location costs one call.
+MAX_WEATHER_POINTS = int(os.environ.get("MAX_WEATHER_POINTS") or (150 if _PIRATE else 500))
+HEATMAP_MAX_POINTS = int(os.environ.get("HEATMAP_MAX_POINTS") or (80 if _PIRATE else 400))
 HTTP_TIMEOUT_SECONDS = float(os.environ.get("HTTP_TIMEOUT_SECONDS", "12"))
 UPSTREAM_WORKERS = int(os.environ.get("UPSTREAM_WORKERS", "8"))
 HTTP_FORCE_IPV4 = env_bool("HTTP_FORCE_IPV4", False)

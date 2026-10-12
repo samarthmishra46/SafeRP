@@ -13,8 +13,18 @@ traffic**, and the next request then waits up to about a minute while it wakes. 
 744 hours and Render gives each workspace **750 free instance hours** a month, so one always-on
 service fits within the free tier. A second always-on free service would not.
 
-You need: this repo on GitHub, a Mapbox access token (account.mapbox.com → Tokens; the default
-public `pk.` token is fine), and free accounts on Render, Vercel and cron-job.org.
+You need:
+- this repo on GitHub;
+- a Mapbox access token (account.mapbox.com → Tokens; the default public `pk.` token is fine);
+- a **Pirate Weather API key**, which is free with 10,000 calls a month: sign up at
+  **pirate-weather.apiable.io/products/weatherdata/plans**, subscribe to the free plan, and copy
+  the key;
+- free accounts on Render, Vercel and cron-job.org.
+
+**Why Pirate Weather on Render?** Open-Meteo, the default weather source, limits free use per IP
+address, and Render's free services share outbound IPs, so the quota can be used up by others.
+Pirate Weather's free key gives the deployed demo its own quota. Locally, Open-Meteo stays the
+default.
 
 ---
 
@@ -27,7 +37,12 @@ public `pk.` token is fine), and free accounts on Render, Vercel and cron-job.or
    - `MAPBOX_ACCESS_TOKEN`: your Mapbox token.
    - `CORS_ALLOWED_ORIGINS`: your frontend URL. You don't know it yet, so enter
      `http://localhost:5173` for now; you'll change it in step 4.
+   - `PIRATE_WEATHER_API_KEY`: your Pirate Weather key.
    - `REDIS_URL`: leave empty. It's optional (see "Optional: Redis" below).
+
+   `WEATHER_PROVIDER` is set to `pirate-weather` by the Blueprint. **If your service already
+   exists**, add `WEATHER_PROVIDER` = `pirate-weather` and `PIRATE_WEATHER_API_KEY` by hand under
+   **Environment**; Blueprint secrets are only asked for once.
 
    `DJANGO_SECRET_KEY` is generated for you, `DJANGO_DEBUG` is set to `false`, and
    `HTTP_FORCE_IPV4` is set to `true`. Without it, each call to Mapbox stalls about 15 s on
@@ -141,9 +156,11 @@ Backend (all optional except the first two in production):
 | `WIND_METRIC` | `gust` | `gust` or `sustained` |
 | `TRUCK_SPEED_FACTOR` | `1.0` | |
 | `FORECAST_HORIZON_HOURS` | `168` | |
-| `MAX_WEATHER_POINTS` | `500` | |
-| `HEATMAP_MAX_POINTS` | `400` | `render.yaml` sets 200 to save Open-Meteo quota. |
+| `MAX_WEATHER_POINTS` | `500` (`150` with Pirate Weather) | Forecast locations per plan. |
+| `HEATMAP_MAX_POINTS` | `400` (`80` with Pirate Weather) | Heatmap grid size. |
 | `OPEN_METEO_API_KEY` | — | Optional paid Open-Meteo key; uses its own quota instead of the free per-IP limits. |
+| `WEATHER_PROVIDER` | `open-meteo` | `open-meteo` or `pirate-weather` (`render.yaml` sets `pirate-weather`). |
+| `PIRATE_WEATHER_API_KEY` | — | Required when the provider is `pirate-weather`. |
 | `GEOCODE_COUNTRY` | `us` | Default only; the app sends the country picked in the form. |
 | `THROTTLE_PLAN` / `THROTTLE_HEATMAP` / `THROTTLE_GEOCODE` | `12/min` / `12/min` / `120/min` | |
 | `NUM_PROXIES` | `1` | Proxy hops in front of Django, used for per-IP throttling. |
@@ -181,6 +198,10 @@ Frontend: `VITE_API_BASE_URL`.
   `DJANGO_ALLOWED_HOSTS`. Render's own `*.onrender.com` hostname is allowed automatically.
 - **Plans are slower than locally.** The free instance has a small CPU share, so a long trip's
   first plan can take 10–20 s. Repeat plans come from the cache and are fast.
+- **"Pirate Weather is unavailable right now: …".** "API key was rejected" means
+  `PIRATE_WEATHER_API_KEY` is wrong or missing on Render. "Quota is used up" means the 10,000
+  monthly calls are gone. Each new forecast location is one call: a trip at 25-mile checkpoints is
+  roughly 30–150 calls, plus up to 80 for its heatmap. Cached locations are free for 30 minutes.
 - **"Open-Meteo is unavailable right now: free-tier limit reached (…)".** Open-Meteo's free API
   allows 600 calls a minute, 5,000 an hour and 10,000 a day **per IP address**. Each forecast
   location counts as one call, and the text in brackets says which limit was hit. A long trip plus

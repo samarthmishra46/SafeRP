@@ -124,6 +124,7 @@ export interface PlanResponse {
   meta: {
     generatedAt: string;
     windMetric: 'gust' | 'sustained';
+    weatherProvider?: 'open-meteo' | 'pirate-weather';
     intervalMi: number;
     weightLb: number;
     departure: string;

@@ -1,5 +1,6 @@
 import gzip
 import json
+import re
 
 import pytest
 import responses
@@ -420,3 +421,64 @@ def test_plan_reason_in_kilometres(upstreams):
         or "only route" in data["recommendation"]["reason"]
     )
     assert_error(plan(distanceUnit="furlong"), 400, "invalid_request")
+
+
+# --- Pirate Weather provider -------------------------------------------------------------
+
+PIRATE_URL = re.compile(r"https://api\.pirateweather\.net/forecast/.*")
+
+
+def _pirate_callback(request):
+    from datetime import UTC, datetime
+
+    start = int(datetime.now(UTC).replace(minute=0, second=0, microsecond=0).timestamp())
+    data = [
+        {
+            "time": start + i * 3600,
+            "windSpeed": 12.0,
+            "windGust": 18.0,
+            "windBearing": 200,
+            "temperature": 60.0,
+            "rainIntensity": 0.0,
+            "snowIntensity": 0.0,
+            "iceIntensity": 0.0,
+        }
+        for i in range(169)
+    ]
+    return 200, {}, json.dumps({"hourly": {"data": data}})
+
+
+@pytest.fixture
+def pirate(upstreams, settings):
+    settings.WEATHER_PROVIDER = "pirate-weather"
+    settings.PIRATE_WEATHER_API_KEY = "pw-secret"
+    upstreams.rsps.add_callback(responses.GET, PIRATE_URL, callback=_pirate_callback)
+    return upstreams
+
+
+def test_plan_with_pirate_weather(pirate):
+    r = plan(intervalMi=25)
+    assert r.status_code == 200, r.content
+    calls = pirate.calls_to(PIRATE_URL)
+    locations = {(c["lat"], c["lon"]) for route in r.json()["routes"] for c in route["checkpoints"]}
+    assert 0 < len(calls) <= len(locations)  # one call per distinct (rounded) location
+    for call in calls:
+        assert "pw-secret" not in call.request.url
+        assert call.request.headers["apikey"] == "pw-secret"
+        assert "extend=hourly" in call.request.url and "units=us" in call.request.url
+    assert not pirate.calls_to(OPEN_METEO_URL)
+    cp = r.json()["routes"][0]["checkpoints"][1]
+    assert cp["weather"]["windGustMph"] == 18 and cp["levelLabel"] == "Low"
+
+
+@pytest.mark.parametrize(
+    ("status", "text"), [(401, "API key was rejected"), (429, "quota is used up")]
+)
+def test_pirate_weather_errors(pirate, status, text):
+    pirate.rsps.replace(responses.GET, PIRATE_URL, json={"message": "nope"}, status=status)
+    assert_error(plan(), 502, "upstream_error", text)
+
+
+def test_pirate_weather_without_key(pirate, settings):
+    settings.PIRATE_WEATHER_API_KEY = ""
+    assert_error(plan(), 502, "upstream_error", "PIRATE_WEATHER_API_KEY")

@@ -399,3 +399,27 @@ do not hit them.
     own quota.
   - Redis (Render Key Value) keeps the cache across deploys.
   - A host with a dedicated IP (e.g. an Oracle free VM) has its own quota.
+
+## Pirate Weather for the deployed demo
+
+- **Switchable provider** (`WEATHER_PROVIDER`): Open-Meteo stays the default (batched, keyless); the
+  Render demo uses Pirate Weather, whose free API key carries its own quota (10,000 calls/month)
+  instead of a per-IP limit shared with other Render customers.
+- **Parsing into the same hourly series**, so risk rules, ETA sampling, heatmap frames and
+  animations are unchanged:
+  - Pirate Weather's hourly point at time *t* describes the hour **starting** at *t*. Its rain,
+    snow and gust values are moved to the bucket that closes that hour (our convention). Wind
+    speed, direction and temperature stay at *t*.
+  - `rainIntensity` + `iceIntensity` (freezing rain) is the rain rate, and `snowIntensity` is the
+    snowfall rate (in/h). Older responses fall back to `precipIntensity` + `precipType`, with
+    ~10:1 snow-to-liquid.
+  - °F is converted to °C.
+  - `windBearing` is treated as the direction the wind comes **from** (Dark Sky convention), which
+    only affects the animated wind arrows.
+- **Budget.** Every location is one call (no batching), so the provider defaults drop to 80
+  heatmap points and 150 locations per plan. Long trips at 10-mile spacing are refused with the
+  "choose a wider interval" message.
+- **Key handling.** The key is sent in the `apikey` header with a placeholder path, so it never
+  appears in URLs or logs. It is whitespace- and quote-trimmed like the Mapbox token.
+- **Not verified live** (no key was available while building). The response format follows Pirate
+  Weather's documented hourly fields and is covered by mocked tests.

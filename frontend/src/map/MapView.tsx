@@ -14,7 +14,8 @@ import Map, {
   type MapRef,
 } from 'react-map-gl/maplibre';
 import type { HeatmapResponse, PlanResponse } from '../api/types';
-import { boundsOf, positionAtElapsed } from '../lib/geo';
+import { boundsOf } from '../lib/geo';
+import { truckPositionAtHour } from '../lib/timeline';
 import { useUi } from '../state/uiStore';
 import { CheckpointPopup } from './CheckpointPopup';
 import {
@@ -37,8 +38,8 @@ export interface MapPadding {
 interface Props {
   plan: PlanResponse | undefined;
   heatmap: HeatmapResponse | undefined;
-  /** Wall-clock time of slider hour 0 (epoch ms). */
-  timelineStartMs: number;
+  /** Slider hour 0: the heatmap's anchor hour (epoch ms). */
+  timelineAnchorMs: number;
   padding: MapPadding;
 }
 
@@ -54,7 +55,7 @@ function prefersReducedMotion() {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 }
 
-export default function MapView({ plan, heatmap, timelineStartMs, padding }: Props) {
+export default function MapView({ plan, heatmap, timelineAnchorMs, padding }: Props) {
   const theme = useTheme();
   const mode = theme.palette.mode;
   const mapRef = useRef<MapRef>(null);
@@ -168,14 +169,13 @@ export default function MapView({ plan, heatmap, timelineStartMs, padding }: Pro
   // --- Truck positions at the slider time --------------------------------------------------
   const trucks = useMemo(() => {
     if (!plan || !heatmap) return [];
-    const at = timelineStartMs + heatHour * 3_600_000;
     return plan.routes
       .flatMap((r) => {
-        const pos = positionAtElapsed(r, (at - Date.parse(r.departure)) / 1000);
+        const pos = truckPositionAtHour(r, timelineAnchorMs, heatHour);
         return pos ? [{ id: r.id, pos, selected: r.id === selected?.id }] : [];
       })
       .sort((a, b) => Number(a.selected) - Number(b.selected)); // selected truck drawn on top
-  }, [plan, heatmap, timelineStartMs, heatHour, selected?.id]);
+  }, [plan, heatmap, timelineAnchorMs, heatHour, selected?.id]);
 
   // --- Camera ------------------------------------------------------------------------------
   const fittedPlan = useRef<PlanResponse | null>(null);

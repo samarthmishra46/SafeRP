@@ -1,4 +1,4 @@
-import type { Checkpoint, PlanResponse, RiskLevel, Route } from '../api/types';
+import type { Checkpoint, HeatmapResponse, PlanResponse, RiskLevel, Route } from '../api/types';
 
 function checkpoint(
   index: number,
@@ -104,5 +104,22 @@ export function makePlan(): PlanResponse {
       departure: '2026-01-15T12:00:00Z',
       bbox: [-97, 32, -96, 32],
     },
+  };
+}
+
+export function makeHeatmap(anchorIso: string): HeatmapResponse {
+  const empty = () => Array.from({ length: 49 }, () => [] as number[]);
+  return {
+    anchor: anchorIso,
+    hours: 48,
+    times: Array.from({ length: 49 }, (_, h) =>
+      new Date(Date.parse(anchorIso) + h * 3_600_000).toISOString(),
+    ),
+    spacingDeg: 0.5,
+    windMetric: 'gust',
+    points: [],
+    wind: empty(),
+    rain: empty(),
+    snow: empty(),
   };
 }

@@ -84,3 +84,11 @@ export function joinFactors(factors: string[]): string {
   if (cap.length === 1) return cap[0];
   return `${cap.slice(0, -1).join(', ')} and ${cap[cap.length - 1]}`;
 }
+
+/** Slider label: weekday and 24-hour local time, e.g. "Tue 14:00". */
+export function formatSliderTime(date: Date, locale?: string): string {
+  const weekday = new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date);
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${weekday} ${hh}:${mm}`;
+}

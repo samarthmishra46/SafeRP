@@ -47,12 +47,8 @@ export default function App() {
   const plan = planMutation.data;
   const heatQuery = useHeatmap(plan?.meta.bbox);
   const heatmap = heatQuery.data;
-  // Slider hour 0 is "now": the moment the forecast grid loaded, kept inside its anchor hour.
-  const timelineStartMs = useMemo(() => {
-    if (!heatmap) return 0;
-    const anchor = Date.parse(heatmap.anchor);
-    return Math.min(Math.max(heatQuery.dataUpdatedAt, anchor), anchor + 3_599_000);
-  }, [heatmap, heatQuery.dataUpdatedAt]);
+  // Slider hour 0 is the current forecast hour: the heatmap's anchor (a whole UTC hour).
+  const timelineAnchorMs = heatmap ? Date.parse(heatmap.anchor) : 0;
 
   const submit = useCallback(() => {
     planMutation.mutate(toPlanRequest(useTrip.getState()), {
@@ -163,7 +159,7 @@ export default function App() {
               loading={heatQuery.isFetching}
               error={heatQuery.error}
               onRetry={() => heatQuery.refetch()}
-              startMs={timelineStartMs}
+              anchorMs={timelineAnchorMs}
               compact={mobile}
             />
           </Box>
@@ -203,7 +199,7 @@ export default function App() {
             <MapView
               plan={plan}
               heatmap={heatmap}
-              timelineStartMs={timelineStartMs}
+              timelineAnchorMs={timelineAnchorMs}
               padding={padding}
             />
           </Suspense>

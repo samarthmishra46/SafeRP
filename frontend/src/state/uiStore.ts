@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { HeatLayer } from '../api/types';
 
+export type PlaySpeed = 1 | 2 | 4;
+
 export interface HoveredCheckpoint {
   routeId: string;
   index: number;
@@ -16,6 +18,8 @@ interface UiState {
   heatLayer: HeatLayer;
   heatVisible: boolean;
   playing: boolean;
+  /** Forecast hours advanced per second during playback. */
+  playSpeed: PlaySpeed;
   selectRoute: (id: string | null) => void;
   setHovered: (h: HoveredCheckpoint | null) => void;
   pinCheckpoint: (p: { routeId: string; index: number } | null) => void;
@@ -23,6 +27,7 @@ interface UiState {
   setHeatLayer: (layer: HeatLayer) => void;
   setHeatVisible: (visible: boolean) => void;
   setPlaying: (playing: boolean) => void;
+  setPlaySpeed: (speed: PlaySpeed) => void;
   resetForPlan: (recommendedId: string) => void;
 }
 
@@ -34,6 +39,7 @@ export const useUi = create<UiState>((set) => ({
   heatLayer: 'wind',
   heatVisible: true,
   playing: false,
+  playSpeed: 1,
   selectRoute: (id) => set({ selectedRouteId: id, pinned: null, hovered: null }),
   setHovered: (hovered) => set({ hovered }),
   pinCheckpoint: (pinned) => set({ pinned }),
@@ -41,6 +47,7 @@ export const useUi = create<UiState>((set) => ({
   setHeatLayer: (heatLayer) => set({ heatLayer }),
   setHeatVisible: (heatVisible) => set({ heatVisible }),
   setPlaying: (playing) => set({ playing }),
+  setPlaySpeed: (playSpeed) => set({ playSpeed }),
   resetForPlan: (recommendedId) =>
     set({ selectedRouteId: recommendedId, hovered: null, pinned: null, playing: false }),
 }));

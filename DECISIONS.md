@@ -153,3 +153,32 @@ Judgment calls made where the brief was ambiguous, with the reasoning behind eac
   configured origins, plus an optional regex for preview deployments.
 - **Silenced Django deploy checks**: CSRF (no cookie auth), SSL redirect and HSTS (terminated and
   sent by the platform). The reasons are commented in `settings.py`.
+
+## Forecast slider (upgrade)
+
+- **Slider hours are whole forecast hours.** Hour h is the time `anchor + h`, where the anchor is the
+  current UTC hour from the heatmap. It shows the forecast frame covering that hour. Before, hour 0
+  was "the moment the grid loaded", which put truck time and weather frame up to 59 minutes apart.
+  The label is weekday + 24-hour local time ("Tue 14:00") plus "+N h". In half-hour time zones the
+  minutes read :30, because the forecast hours are UTC hours.
+- **Playback speeds 1×/2×/4× = 1, 2 or 4 forecast hours per second. Playback stops at +48 h** rather
+  than looping. A loop would jump silently from two days out back to "now", which is easy to
+  misread. Pressing Play at the end restarts from hour 0.
+- **The Departure button jumps to the first whole hour at or after departure**, so the truck is
+  already on the map. It is disabled, with a tooltip, when departure is beyond the 48-hour window.
+  The track marks departure and arrival of the selected route (the recommended route by default).
+- **The hazard timeline uses the same ETA forecast as the recommendation.** Each checkpoint owns the
+  time from the midpoint of its ETA with the previous checkpoint to the midpoint with the next,
+  mirroring how it owns miles. An hour is coloured by the worst level among checkpoints whose time
+  overlaps it. Hours off the road are left blank. All-Low hours are drawn faint so trouble stands out.
+- **Dragging is throttled to animation frames.** The thumb follows the pointer through local state;
+  the store, and therefore the map, updates at most once per frame. Keyboard and the final position
+  commit immediately. MUI's slider already handled the arrow keys and Home/End, and they are now
+  covered by tests.
+- **The slider never changes risk or the recommendation.** This is stated in a tooltip, in the
+  slider's accessible description, and in a short caption on desktop.
+- **Truck markers stay as DOM markers** (at most three, one per route; the selected one is filled
+  with the accent colour). Their position comes from `truckPositionAtHour`, which follows Mapbox's
+  per-segment durations.
+- **The dev proxy target is configurable** (`API_PROXY_TARGET`, default `http://127.0.0.1:8000`), so a
+  second dev stack can run beside the usual one.

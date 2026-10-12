@@ -283,5 +283,5 @@ frontend/
   src/theme/          MUI theme, risk palette and icons
 ```
 
-See [DEPLOY.md](DEPLOY.md) for deployment and [LOOM_SCRIPT.md](LOOM_SCRIPT.md) for a walkthrough
+See [DEPLOY.md](DEPLOY.md) for deployment (backend on Render's free tier, kept awake by a 10-minute ping; frontend on Vercel) and [LOOM_SCRIPT.md](LOOM_SCRIPT.md) for a walkthrough
 outline.

@@ -352,3 +352,36 @@ do not hit them.
   `distanceUnit` ("mi"/"km"). Only the wording changes ("0 Severe km vs 29 on Route A"); every
   number in the response stays in miles. A planning error that mentioned "10-mile interval" now
   says "this checkpoint interval".
+
+## Deployment (revised): backend on Render, kept awake
+
+- **The backend moves to a Render free web service** (`render.yaml` Blueprint, root `backend`). The
+  Vercel backend configuration stays as a documented alternative. Render runs one long-lived
+  gunicorn process, so the in-memory cache (weather 30 min, routes 10 min, geocoding 24 h) is
+  shared by all requests even without Redis. Vercel spreads requests over short-lived instances.
+- **Keep-alive.** Render sleeps a free service after 15 minutes without traffic, and waking takes
+  up to about a minute. A ping every **10 minutes** keeps it awake; a 3-hourly ping would not.
+  - One always-on service needs at most 744 hours a month, inside Render's 750 free hours per
+    workspace.
+  - **cron-job.org is the primary pinger:** free, minute-level schedules, run history.
+  - **A GitHub Actions workflow is the backup:** free for this public repo, but GitHub can run
+    schedules late and pauses them after 60 days without commits.
+  - Both call `/api/health`, which is unthrottled, cheap, and never calls Mapbox or Open-Meteo.
+- **Build.** `uv export --frozen --no-dev` turns `uv.lock` into a requirements file, which is then
+  `pip install`ed into Render's own Python. This is Render's standard install path, keeps the exact
+  locked versions, and avoids a virtualenv whose interpreter might not exist at runtime.
+  Rehearsed locally on a clean Python 3.14 environment.
+  - Render reads `.python-version` (3.12) or falls back to its default (3.14); the test suite passes
+    on both.
+- **gunicorn: 1 worker, 8 threads, 120 s timeout.**
+  - Requests are I/O bound (Mapbox and Open-Meteo), so threads cover concurrency within 512 MB.
+  - A single process keeps one shared in-memory cache.
+  - The long timeout covers a cold first plan on the free instance's small CPU share.
+- **Allowed hosts.** Render's hostname is added automatically from `RENDER_EXTERNAL_HOSTNAME`, so no
+  host configuration is needed for `*.onrender.com`.
+- **Frontend calls the API directly** (`VITE_API_BASE_URL` + CORS) rather than through a Vercel
+  rewrite. A proxy hop would add latency, and it's unclear how a rewrite would behave while a
+  sleeping service takes a minute to wake.
+- **Throttling behind Render's proxy is unverified.** DRF takes the client IP from
+  `X-Forwarded-For` with `NUM_PROXIES=1`. If Render's chain has more hops, users could share one
+  rate-limit bucket; adjust `NUM_PROXIES` if plans are throttled unexpectedly.

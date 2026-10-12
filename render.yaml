@@ -1,0 +1,31 @@
+# Render Blueprint for the SafeRP API (free web service).
+# Render: New > Blueprint > pick this repo. Secrets marked `sync: false` are asked for once.
+services:
+  - type: web
+    name: saferp-api
+    runtime: python
+    plan: free
+    region: oregon # fixed at creation; pick the region closest to your users
+    rootDir: backend
+    # Install exactly what uv.lock pins (runtime deps only) into Render's Python.
+    buildCommand: >-
+      pip install uv &&
+      uv export --frozen --no-dev --no-hashes --no-emit-project -o requirements.txt &&
+      pip install -r requirements.txt
+    # One process keeps the in-memory cache shared; threads cover the I/O-bound requests.
+    startCommand: >-
+      gunicorn saferp.wsgi:application --bind 0.0.0.0:$PORT
+      --workers 1 --threads 8 --timeout 120 --access-logfile -
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: MAPBOX_ACCESS_TOKEN
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS # your Vercel URL, e.g. https://saferp.vercel.app
+        sync: false
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: REDIS_URL # optional, e.g. an Upstash rediss:// URL; leave blank to use memory
+        sync: false
